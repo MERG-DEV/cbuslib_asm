@@ -3,7 +3,7 @@
 
 ; (c) Pete Brownlow  2011-2012
 
-; These definitions taken from CBUS specifications document rev 8g
+; These definitions taken from CBUS specifications document rev 8h
 
 
 ; Pete Brownlow 6/4/11 - Original from spec version 7e 
@@ -25,6 +25,8 @@
 ; Pete Brownlow 22/1/14 - Added NN_RSM, fix CANGC1e type definition, add parameter definitions for manufacturer's CPU id
 ; Phil Wheeler	 1/2/14	- Added PRM_BETA, dotted some more decimal numbers
 ; Phil Wheeler	 9/3/14 - Corrected CANSIG MTYP definitions
+; Pete Brownlow 19/4/14 - Added module type defs for CANTOTIMIO, CANBIP
+; Pete Brownlow 5/5/14  - Remove canacc5c and cantotimio, add cansol
 
 ; NOTE: To display this file with everything correctly lined up set your editor or IDE tab stop to 4
 
@@ -95,6 +97,9 @@ MTYP_CANACE3C	equ	.30	;Enhanced version of CANACE3
 MTYP_CANPanel	equ	.31	;Combines 64 switches with 64 LEDs
 MTYP_CANMIO		equ	.32	;Multiple IO module
 MTYP_CANACE8MIO	equ	.33	;Multiple IO module emulating ACE8C
+MTYP_CANSOL     equ .34 ;Solenoid IO module with additional 8 I/O pins
+MTYP_CANBIP     equ .35 ;Bipolar IO module with additional 8 I/O pins
+
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
 MTYP_CANUSB     equ 0xFD ; Reserved for future use
 
@@ -395,3 +400,7 @@ P32MX764F128			equ	.35
 P32MX775F256			equ	.36
 P32MX775F512			equ	.37
 P32MX795F512			equ	.38
+
+; Processor manufacturer codes
+
+CPUM_MICROCHIP          equ  .1
