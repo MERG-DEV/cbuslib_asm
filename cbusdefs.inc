@@ -1,9 +1,9 @@
 
 ; CBUS definitions for use in PIC assembler
 
-; (c) Pete Brownlow  2011-2012
+; (c) Pete Brownlow  2011-2015
 
-; These definitions taken from CBUS specifications document rev 8h
+; These definitions are taken from CBUS specifications document rev 8d embedded in developer guide 6b.
 
 
 ; Pete Brownlow 6/4/11 - Original from spec version 7e 
@@ -27,6 +27,8 @@
 ; Phil Wheeler	 9/3/14 - Corrected CANSIG MTYP definitions
 ; Pete Brownlow 19/4/14 - Added module type defs for CANTOTIMIO, CANBIP
 ; Pete Brownlow 5/5/14  - Remove canacc5c and cantotimio, add cansol
+; Pete Brownlow 06/7/15 - Ver 8j Add new module types as per modules definitions v17 : CANCDU, CANACC4CDU, CANWiBase, WiCAB, CANWiFi, CANFTT
+;                                Add new opcode ALOC, added CPU manufacturer code CPUM_ATMEL
 
 ; NOTE: To display this file with everything correctly lined up set your editor or IDE tab stop to 4
 
@@ -97,9 +99,16 @@ MTYP_CANACE3C	equ	.30	;Enhanced version of CANACE3
 MTYP_CANPanel	equ	.31	;Combines 64 switches with 64 LEDs
 MTYP_CANMIO		equ	.32	;Multiple IO module
 MTYP_CANACE8MIO	equ	.33	;Multiple IO module emulating ACE8C
-MTYP_CANSOL     equ .34 ;Solenoid IO module with additional 8 I/O pins
+MTYP_CANSOL     equ .34 ;Solenoid driver module
 MTYP_CANBIP     equ .35 ;Bipolar IO module with additional 8 I/O pins
+MTYP_CANCDU     equ .36 ;Solenoid driver module with additional 6 I/O pins
+MTYP_CANACC4CDU equ .37 ;CANACC4 firmware modified for CANCDU
+MTYP_CANWiBase  equ .38 ;CAN to MiWi base station
+MTYP_WiCAB      equ .39 ;Wireless cab using MiWi protocol
+MTYP_CANWiFi    equ .40 ;CAN to WiFi connection with Withrottle to CBUS protocol conversion
+MTYP_CANFTT     equ .41 ;Turntable controller configured using FLiM
 
+MTYP_CAN_SW     equ 0xFF ; Software nodes
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
 MTYP_CANUSB     equ 0xFD ; Reserved for future use
 
@@ -157,6 +166,7 @@ OPC_EXTC    EQU 0x3F    ; Extended opcode
 OPC_RLOC    EQU 0x40    ; Request session for loco
 OPC_QCON	EQU 0x41	; Query consist
 OPC_SNN     EQU	0x42    ; Set node number
+OPC_ALOC    EQU 0X43    ; Allocate loco (used to allocate to a shuttle in cancmd)
 OPC_STMOD   EQU	0x44    ; Set Throttle mode
 OPC_PCON    EQU	0x45    ; Consist loco
 OPC_KCON    EQU	0x46    ; De-consist loco
@@ -321,7 +331,7 @@ CMDERR_TOO_MANY_EVENTS	EQU	.4
 ; CMDERR_NO_EV			EQU	.5		NOW RESERVED
 CMDERR_INV_EV_IDX		EQU	.6
 CMDERR_INVALID_EVENT	EQU	.7
-; CMDERR_INV_EN_IDX		EQU	.8		NOW RESERVED
+    ; CMDERR_INV_EN_IDX		EQU	.8		NOW RESERVED
 CMDERR_INV_PARAM_IDX	EQU .9
 CMDERR_INV_NV_IDX		EQU	.10
 CMDERR_INV_EV_VALUE		EQU	.11
@@ -368,6 +378,7 @@ PF_BOOT					equ .8
 
 PB_CAN					equ .1
 PB_ETH					equ .2
+PB_MIWI                 equ .3
 
 ; Processor type codes (identifies to FCU for bootload compatiblity)
 
@@ -404,3 +415,4 @@ P32MX795F512			equ	.38
 ; Processor manufacturer codes
 
 CPUM_MICROCHIP          equ  .1
+CPUM_ATMEL              equ  .2
