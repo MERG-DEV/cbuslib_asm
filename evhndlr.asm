@@ -7,6 +7,7 @@
 ; Rev f             - added LOW before EEPROM addresses. Prevents error messages
 ; Rev g  23/08/12	 - Extra code in 'isthere' for event delete in CANSERVO8C
 ; Rev h 08/08/15 pnb - Refactored newev as a subroutine createv that can be called from elsewhere
+; Rev j 18/2/17  pnb - Make compatible with 25k80 by clearing EEADRH before EEPROM ops (only uses first 256 bytes of EEPROM except for high byte for bootloader)        
 
 ;include file for handling flash event data
 
@@ -15,6 +16,7 @@
 ;		send number of events
 
 evnsend
+        clrf    EEADRH
 		movlw	LOW ENindex+1
 		movwf	EEADR
 		call	eeread
@@ -325,8 +327,8 @@ copyEVs
 	movwf	Temp
 	incf	EEADR
 	call	eeread			;get num of events
-	addwf	Temp			;total should equal EN_NUM
-	movlw	EN_NUM
+	addwf	Temp			;total should equal EVT_NUM
+	movlw	EVT_NUM
 	cpfseq	Temp
 	bra     noFreeCh
 	return					;Free chain set up so do nothing
@@ -387,7 +389,7 @@ initevdata		; clear all event info
 	movwf	EEADR
 	movlw	0
 	call	eewrite			; no events set up
-	movlw	EN_NUM
+	movlw	EVT_NUM
 	decf	EEADR
 	call	eewrite			; set up no of free events
 
@@ -430,7 +432,7 @@ nexthn						; clear hash table count
 	clrf	prevadrh
 	clrf	prevadrl
 	
-	movlw	EN_NUM
+	movlw	EVT_NUM
 	movwf	Count		; loop for all events
 
 nxtblk
@@ -610,7 +612,7 @@ no_match		;get link address to next event
 ; routines for clearing flash ram
 	
 clrev		; erase all of the event data area in flash
-	movlw	EN_NUM/4
+	movlw	EVT_NUM/4
 	movwf	Count		; 4 events per 64 bytes
 	movlw	LOW evdata
 	movwf	TBLPTRL
@@ -961,7 +963,7 @@ evsend
 		movf	EVidx,w		; index starts at 1
 		bz		notEV		; zero is invalid
 		decf	EVidx
-		movlw	EV_NUM
+		movlw	EVperEVT
 		cpfslt	EVidx		; skip if in range
 		bra		notEV
 		
