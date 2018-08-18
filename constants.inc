@@ -1,3 +1,7 @@
+;Constant for CBUS code
+;
+;16-Apr-13 PJW Added CANSIG64/CANSIG8 equates
+;
 MTYP_SLIM       equ 0   ; default type code for SLiM nodes
 MTYP_CANACC4    equ 1	; Solenoid point driver
 MTYP_CANACC5    equ 2	; Motorised point driver
@@ -15,7 +19,17 @@ MTYP_CANRPI     equ .13	; RPI and RFID interface
 MTYP_CANTTCA    equ .14	; Turntable controller (turntable end)
 MTYP_CANTTCB    equ .15 ; Turntable controller (control panel end)
 MTYP_CANHS      equ .16	; Handset controller for old BC1a type handsets
-MTYP_CANTOTI    equ .17	; 8 input Train On Track Indicator
+MTYP_CANTOTI	equ .17	; Track occupancy detector
+MTYP_CAN8I8O	equ .18	;8 input/8 output
+MTYP_CANSERVO8C	equ .19	;Combi version of CANSERVO
+MTYP_CANRFID	equ .20	;RFID module
+MTYP_CANTC4	equ .21
+MTYP_CANACE16C	equ .22	;16 input version of CANACE8C
+MTYP_CANIO8	equ .23
+MTYP_CANSNDx	equ .24
+MTYP_CANETHER	equ .25	;Ethernet interface module
+MTYP_CANSIG64	equ .26	;CANSIG firmware for CANLED64 hardware
+MTYP_CANSIG8	equ .27	;CANSIG firmware for CANACC8 hardware
 MTYP_CANBLANK	equ .254 ; Blank module for Bootloading only
 MTYP_CANUSB	equ .253 ; USB module, only used for Bootloading
 
