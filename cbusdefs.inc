@@ -1,7 +1,7 @@
 
 ; CBUS definitions for use in PIC assembler
 
-; (c) Pete Brownlow  2011-2016 software@upsys.co.uk
+; (c) Pete Brownlow  2011-2017 software@upsys.co.uk
 
 ; NOTE: To display this file with everything correctly lined up set your editor or IDE tab stop to 4  
 
@@ -44,6 +44,8 @@
 ; Pete Brownlow  2/7/16 - Ver 8m     Add new module types CANHNDST, CANTCHNDST, CANmchRFID and CANPiWi  
 ;                                    Add processor codes for ARM chips used in Raspberry Pi's  
 ; Pete Brownlow	 16/2/17 - Ver 8n   Add module ids to bring it up to module ids document ver 25   
+; Pete Brownlow	 29/7/17 - Ver 8p   Add new module ids and new cab signalling opcode 
+; Pete Brownlow	 09/1/18 - Ver 8q   Add new parameter flag for module can consume its own events
 
 
 ; Manufacturers
@@ -110,6 +112,8 @@ MTYP_CANMIO_INP	equ .51	; 16MHz 25k80 version of CANACE8MIO
 MTYP_CANMIO_OUT	equ .52	; 16MHz 25k80 version of CANACC8
 MTYP_CANBIP_OUT	equ .53	; 16MHz 25k80 version of CANACC5
 MTYP_CANASTOP	equ .54	; DCC stop generator    
+MTYP_CANCSB	equ .55	; CANCMD with additional 3-4A booster on board
+MTYP_CANMAGOT	equ .56	; Magnet on Track detector
 
 MTYP_CAN_SW     equ 0xFF ; Software nodes
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
@@ -219,6 +223,7 @@ OPC_WCVO    EQU	0x82    ; Write CV byte Ops mode by handle
 OPC_WCVB    EQU	0x83    ; Write CV bit Ops mode by handle
 OPC_QCVS    EQU	0x84    ; Read CV
 OPC_PCVS    EQU	0x85    ; Report CV
+OPC_CABSIG  EQU	0x86	; Cab signalling    
 
 OPC_ACON    EQU	0x90	; on event
 OPC_ACOF    EQU	0x91	; off event
@@ -331,7 +336,7 @@ CMDERR_INV_CMD			EQU	.1
 CMDERR_NOT_LRN			EQU	.2
 CMDERR_NOT_SETUP		EQU	.3
 CMDERR_TOO_MANY_EVENTS		EQU	.4
-; CMDERR_NO_EV			EQU	.5		NOW RESERVED
+CMDERR_NO_EV			EQU	.5		
 CMDERR_INV_EV_IDX		EQU	.6
 CMDERR_INVALID_EVENT		EQU	.7
     ; CMDERR_INV_EN_IDX		EQU	.8		NOW RESERVED
@@ -340,6 +345,25 @@ CMDERR_INV_NV_IDX		EQU	.10
 CMDERR_INV_EV_VALUE		EQU	.11
 CMDERR_INV_NV_VALUE		EQU	.12
 
+; Aspect codes for OPC_CABSIG
+	
+; First aspect byte
+	
+SASP_DANGER		EQU	0
+SASP_CAUTION		EQU	1
+SASP_PRELIM_CAUTION	EQU	2
+SASP_PROCEED		EQU	3
+SASP_CALLON		EQU	4   ; Set bit 2 for call-on - main aspect will usually be at danger
+SASP_THEATRE		EQU	8   ; Set bit 3 to 0 for upper nibble is feather lcoation, set 1 for upper nibble is theatre code
+	
+; Second Aspect byte
+	
+SASP_LIT		EQU	0   ; Set bit 0 to indicate lit
+SASP_LUNAR		EQU	1   ; Set bit 1 for lunar indication
+	
+; Remaining bits in second aspect byte yet to be defined - use for other signalling systems	
+	
+	
 ; Parameter index numbers (readable by OPC_RQNPN, returned in OPC_PARAN)
 ; Index numbers count from 1, subtract 1 for offset into parameter block
 ; Note that RQNPN with index 0 returns the parameter count
@@ -375,7 +399,7 @@ PF_PRODUCER		equ	.2
 PF_COMBI		equ	.3
 PF_FLiM			equ	.4
 PF_BOOT			equ	.8
-
+PF_COE			equ     .16  ; Module can consume its own events
 
 ; BUS type that module is connected to
 
