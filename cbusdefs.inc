@@ -3,7 +3,7 @@
 
 ; (c) Pete Brownlow  2011-2012
 
-; These definitions taken from CBUS specifications document rev 8a
+; These definitions taken from CBUS specifications document rev 8g
 
 
 ; Pete Brownlow 6/4/11 - Original from spec version 7e 
@@ -20,6 +20,11 @@
 ;			- and added OPC_NNRST
 ; Roger Healey	27/04/13 - Added CANSIG8 and CANSIG64
 ; Roger Healey  06/08/13 - add CANCOND8C
+; Roger Healey 22/01/14 = add CANPAN, CANACE3C, CANPanel and CANMIO
+; Phil Wheeler  22/1/14 - Corrected some typos
+; Pete Brownlow 22/1/14 - Added NN_RSM, fix CANGC1e type definition, add parameter definitions for manufacturer's CPU id
+; Phil Wheeler	 1/2/14	- Added PRM_BETA, dotted some more decimal numbers
+; Phil Wheeler	 9/3/14 - Corrected CANSIG MTYP definitions
 
 ; NOTE: To display this file with everything correctly lined up set your editor or IDE tab stop to 4
 
@@ -55,56 +60,61 @@ MANU_SPECTRUM	equ	.80		; http:;animatedmodeler.com  (Spectrum Engineering)
 
 ; MERG Module types
 
-MTYP_SLIM       equ 0   ; default type code for SLiM nodes
-MTYP_CANACC4    equ 1	; Solenoid point driver
-MTYP_CANACC5    equ 2	; Motorised point driver
-MTYP_CANACC8    equ 3	; 8 digital outputs
-MTYP_CANACE3    equ 4	; Control panel switch/button encoder
-MTYP_CANACE8C   equ 5	; 8 digital inputs
-MTYP_CANLED     equ 6	; 64 led driver
-MTYP_CANLED64   equ 7	; 64 led driver (multi leds per event)
-MTYP_CANACC4_2  equ 8	; 12v version of CANACC4  
-MTYP_CANCAB     equ 9	; CANCAB hand throttle   
+MTYP_SLIM       equ .0  ; default type code for SLiM nodes
+MTYP_CANACC4    equ .1	; Solenoid point driver
+MTYP_CANACC5    equ .2	; Motorised point driver
+MTYP_CANACC8    equ .3	; 8 digital outputs
+MTYP_CANACE3    equ .4	; Control panel switch/button encoder
+MTYP_CANACE8C   equ .5	; 8 digital inputs
+MTYP_CANLED     equ .6	; 64 led driver
+MTYP_CANLED64   equ .7	; 64 led driver (multi leds per event)
+MTYP_CANACC4_2  equ .8	; 12v version of CANACC4  
+MTYP_CANCAB     equ .9	; CANCAB hand throttle   
 MTYP_CANCMD     equ .10	; CANCMD command station
 MTYP_CANSERVO	equ	.11	; 8 servo driver (on canacc8 or similar hardware)
-MTYP_CANBC	equ .12	; BC1a command station
-MTYP_CANRPI	equ	.13	; RPI and RFID interface
+MTYP_CANBC      equ .12	; BC1a command station
+MTYP_CANRPI     equ	.13	; RPI and RFID interface
 MTYP_CANTTCA	equ	.14	; Turntable controller (turntable end)
 MTYP_CANTTCB	equ	.15 ; Turntable controller (control panel end)
-MTYP_CANHS	equ	.16	; Handset controller for old BC1a type handsets
+MTYP_CANHS      equ	.16	; Handset controller for old BC1a type handsets
 MTYP_CANTOTI	equ	.17	; Track occupancy detector
 
 MTYP_CAN8I8O	equ	.18	;8 input/8 output
 MTYP_CANSERVO8C	equ	.19	;Combi version of CANSERVO
 MTYP_CANRFID	equ	.20	;RFID module
-MTYP_CANTC4	equ	.21
+MTYP_CANTC4     equ	.21
 MTYP_CANACE16C	equ	.22	;16 input version of CANACE8C
-MTYP_CANIO8	equ	.23
+MTYP_CANIO8     equ	.23
 MTYP_CANSNDx	equ	.24
 MTYP_CANETHER	equ	.25	;Ethernet interface module
-MTYP_CANSIG8	equ	.26	;CANSIG8 Module Id
-MTYP_CANSIG64	equ	.27	;CANSIG64 Module Id
+MTYP_CANSIG64	equ .26	;CANSIG firmware for CANLED64 hardware
+MTYP_CANSIG8	equ .27	;CANSIG firmware for CANACC8 hardware
 MTYP_CANCOND8C	equ	.28	;CAN conditional module
+MTYP_CANPAN		equ	.29	;Combines 32 switches and 32 LEDs
+MTYP_CANACE3C	equ	.30	;Enhanced version of CANACE3
+MTYP_CANPanel	equ	.31	;Combines 64 switches with 64 LEDs
+MTYP_CANMIO		equ	.32	;Multiple IO module
+MTYP_CANACE8MIO	equ	.33	;Multiple IO module emulating ACE8C
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
-MTYP_CANUSB	equ 0xFD ; Reserved for future use
+MTYP_CANUSB     equ 0xFD ; Reserved for future use
 
 
 ; Rocrail Module types
 
-MTYP_CANGC1		equ	 1	; RS232 PC interface
-MTYP_CANGC2  	equ	 2	; 16 I/O
-MTYP_CANGC3		equ	 3	; Command station (derived from cancmd)
-MTYP_CANGC4		equ	 4	; 8 channel RFID reader
-MTYP_CANGC5		equ	 5	; Cab for fixed panels (derived from cancab)
-MTYP_CANGC6		equ	 6	; 4 channel servo controller
-MTYP_CANGC7		equ	 7	; Fast clock module
-MTYP_CANGC1e    equ 11  ; CAN<->Ethernet interface
+MTYP_CANGC1		equ	 .1	; RS232 PC interface
+MTYP_CANGC2  	equ	 .2	; 16 I/O
+MTYP_CANGC3		equ	 .3	; Command station (derived from cancmd)
+MTYP_CANGC4		equ	 .4	; 8 channel RFID reader
+MTYP_CANGC5		equ	 .5	; Cab for fixed panels (derived from cancab)
+MTYP_CANGC6		equ	 .6	; 4 channel servo controller
+MTYP_CANGC7		equ	 .7	; Fast clock module
+MTYP_CANGC1e    equ .11 ; CAN<->Ethernet interface
 
 
 ; Spectrum Engineering Animated Modeller module types
 
-MTYP_AMCTRLR	equ  1	; Animation controller (firmware derived from cancmd)
-MTYP_DUALCAB	equ	 2	; Dual cab based on cancab
+MTYP_AMCTRLR	equ  .1	; Animation controller (firmware derived from cancmd)
+MTYP_DUALCAB	equ	 .2	; Dual cab based on cancab
 
 
 ;  CBUS opcodes list 
@@ -150,6 +160,7 @@ OPC_DFLG    EQU 0x48    ; Set engine flags
 OPC_DFNON	EQU 0x49	; Loco function on
 OPC_DFNOF	EQU 0x4A	; Loco function off
 OPC_SSTAT   EQU	0x4C    ; Service mode status
+OPC_NNRSM   EQU 0x4F    ; Reset to manufacturer's defaults
 
 OPC_RQNN	EQU	0x50    ; Request Node number in setup mode
 OPC_NNREL	EQU	0x51    ; Node number release
@@ -246,8 +257,6 @@ OPC_EXTC5   EQU 0xDF    ; Extended opcode with 5 data bytes
 
 ; Packets with 7 data bytes
 
-
-
 OPC_RDCC6  	EQU	0xE0    ; 6 byte DCC packets
 OPC_PLOC	EQU	0xE1    ; Loco session report
 OPC_NAME	EQU 0xE2    ; Module name response
@@ -273,61 +282,64 @@ OPC_EXTC6	EQU	0xFF	; Extended opcode with 6 data byes
 
 ; Modes for STMOD
 
-TMOD_SPD_MASK   		EQU	3
-TMOD_SPD_128    		EQU	0
-TMOD_SPD_14     		EQU	1
-TMOD_SPD_28I    		EQU	2
-TMOD_SPD_28     		EQU	3
+TMOD_SPD_MASK   		EQU	.3
+TMOD_SPD_128    		EQU	.0
+TMOD_SPD_14     		EQU	.1
+TMOD_SPD_28I    		EQU	.2
+TMOD_SPD_28     		EQU	.3
 
 ; Error codes for OPC_ERR
 
-ERR_LOCO_STACK_FULL     EQU	1
-ERR_LOCO_ADDR_TAKEN     EQU	2
-ERR_SESSION_NOT_PRESENT EQU	3
-ERR_CONSIST_EMPTY		EQU	4
-ERR_LOCO_NOT_FOUND    	EQU	5
-ERR_CMD_RX_BUF_OFLOW	EQU	6
-ERR_INVALID_REQUEST		EQU 7
-ERR_SESSION_CANCELLED	EQU 8
+ERR_LOCO_STACK_FULL     EQU	.1
+ERR_LOCO_ADDR_TAKEN     EQU	.2
+ERR_SESSION_NOT_PRESENT EQU	.3
+ERR_CONSIST_EMPTY		EQU	.4
+ERR_LOCO_NOT_FOUND    	EQU	.5
+ERR_CMD_RX_BUF_OFLOW	EQU	.6
+ERR_INVALID_REQUEST		EQU .7
+ERR_SESSION_CANCELLED	EQU .8
 
 ; Status codes for OPC_SSTAT
 
-SSTAT_NO_ACK    		EQU	1
-SSTAT_OVLD      		EQU	2
-SSTAT_WR_ACK    		EQU	3
-SSTAT_BUSY      		EQU	4
-SSTAT_CV_ERROR  		EQU	5
+SSTAT_NO_ACK    		EQU	.1
+SSTAT_OVLD      		EQU	.2
+SSTAT_WR_ACK    		EQU	.3
+SSTAT_BUSY      		EQU	.4
+SSTAT_CV_ERROR  		EQU	.5
 
 ; Error codes for OPC_CMDERR
 
-CMDERR_INV_CMD			EQU	1
-CMDERR_NOT_LRN			EQU	2
-CMDERR_NOT_SETUP		EQU	3
-CMDERR_TOO_MANY_EVENTS	EQU	4
-; CMDERR_NO_EV			EQU	5		NOW RESERVED
-CMDERR_INV_EV_IDX		EQU	6
-CMDERR_INVALID_EVENT	EQU	7
-; CMDERR_INV_EN_IDX		EQU	8		NOW RESERVED
-CMDERR_INV_PARAM_IDX	EQU 9
-CMDERR_INV_NV_IDX		EQU	10
-CMDERR_INV_EV_VALUE		EQU	11
-CMDERR_INV_NV_VALUE		EQU	12
+CMDERR_INV_CMD			EQU	.1
+CMDERR_NOT_LRN			EQU	.2
+CMDERR_NOT_SETUP		EQU	.3
+CMDERR_TOO_MANY_EVENTS	EQU	.4
+; CMDERR_NO_EV			EQU	.5		NOW RESERVED
+CMDERR_INV_EV_IDX		EQU	.6
+CMDERR_INVALID_EVENT	EQU	.7
+; CMDERR_INV_EN_IDX		EQU	.8		NOW RESERVED
+CMDERR_INV_PARAM_IDX	EQU .9
+CMDERR_INV_NV_IDX		EQU	.10
+CMDERR_INV_EV_VALUE		EQU	.11
+CMDERR_INV_NV_VALUE		EQU	.12
 
 ; Parameter index numbers (readable by OPC_RQNPN, returned in OPC_PARAN)
 ; Index numbers count from 1, subtract 1 for offset into parameter block
 ; Note that RQNPN with index 0 returns the parameter count
 
-PAR_MANU				EQU	1	; Manufacturer id
-PAR_MINVER				EQU 2	; Minor version letter
-PAR_MTYP				EQU 3	; Module type code				
-PAR_EVTNUM				EQU 4	; Number of events supported
-PAR_EVNUM				EQU	5	; Event variables per event
-PAR_NVNUM				EQU 6	; Number of Node variables
-PAR_MAJVER				EQU 7	; Major version number
-PAR_FLAGS				EQU 8	; Node flags
-PAR_CPUID				EQU	9	; Processor type
-PAR_BUSTYPE				EQU	10	; Bus type
-PAR_LOAD				EQU	11	; load address, 4 bytes
+PAR_MANU				EQU	.1	; Manufacturer id
+PAR_MINVER				EQU .2	; Minor version letter
+PAR_MTYP				EQU .3	; Module type code				
+PAR_EVTNUM				EQU .4	; Number of events supported
+PAR_EVNUM				EQU	.5	; Event variables per event
+PAR_NVNUM				EQU .6	; Number of Node variables
+PAR_MAJVER				EQU .7	; Major version number
+PAR_FLAGS				EQU .8	; Node flags
+PAR_CPUID				EQU	.9	; Processor type
+PAR_BUSTYPE				EQU	.10	; Bus type
+PAR_LOAD				EQU	.11	; load address, 4 bytes
+PAR_CPUMID              EQU .15 ; CPU manufacturer's id as read from the chip config space, 4 bytes (note - read from cpu at runtime, so not included in checksum)
+PAR_CPUMAN              EQU .19 ; CPU manufacturer code
+PAR_BETA				EQU .20	; Beta revision (numeric), or 0 if release
 
 ; Offsets to other values stored at the top of the parameter block.
 ; These are not returned by opcode PARAN, but are present in the hex 
@@ -339,30 +351,30 @@ PAR_CKSUM				EQU	0x1E ; Checksum word at end of parameters
 
 ; Flags in PAR_FLAGS
 
-PF_NOEVENTS				equ	0
-PF_CONSUMER				equ	1
-PF_PRODUCER				equ	2
-PF_COMBI				equ	3
-PF_FLiM					equ 4
-PF_BOOT					equ 8
+PF_NOEVENTS				equ	.0
+PF_CONSUMER				equ	.1
+PF_PRODUCER				equ	.2
+PF_COMBI				equ	.3
+PF_FLiM					equ .4
+PF_BOOT					equ .8
 
 
 ; BUS type that module is connected to
 
-PB_CAN					equ 1
-PB_ETH					equ 2
+PB_CAN					equ .1
+PB_ETH					equ .2
 
 ; Processor type codes (identifies to FCU for bootload compatiblity)
 
-P18F2480				equ	1
-P18F4480				equ	2
-P18F2580				equ	3
-P18F4580				equ	4
-P18F2585				equ	5
-P18F4585				equ	6
-P18F2680				equ	7
-P18F4680				equ	8
-P18F2682				equ	9
+P18F2480				equ	.1
+P18F4480				equ	.2
+P18F2580				equ	.3
+P18F4580				equ	.4
+P18F2585				equ	.5
+P18F4585				equ	.6
+P18F2680				equ	.7
+P18F4680				equ	.8
+P18F2682				equ	.9
 P18F4682				equ	.10
 P18F2685				equ	.11
 P18F4685				equ	.12
