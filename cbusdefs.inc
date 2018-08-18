@@ -5,12 +5,21 @@
 
 ; These definitions taken from CBUS specifications document rev 8a
 
+
 ; Pete Brownlow 6/4/11 - Original from spec version 7e 
 ; Pete Brownlow 7/6/11 - Update to spec version 7f, add new module type codes
 ; Pete Brownlow 4/7/11 - Update to spec version 7g.
 ; Pete Brownlow 14/8/11 - Updated to spec ver 7h
 ; Pete Brownlow 20/2/12 - Updated to spec ver 8a, Rocrail and animated modeller module types added
-
+; Pete Brownlow 10/4/12 - Updated to spec ver 8b, extended parameter bytes
+; Roger Healey	13/7/12 - Add CANTOTI
+; Pete Brownlow 15/9/12 - Updated to spec ver 8c, added 0x5D ENUM and 0x75 CANID
+; Roger Healey  15/2/13 - Now at version d. Added new Module Ids (as per ModuleIds Issue 9) and  
+;			- align Processor Ids with constants.inc
+;			- and added .(fullstop) before each processor Id > 9
+;			- and added OPC_NNRST
+; Roger Healey	27/04/13 - Added CANSIG8 and CANSIG64
+; Roger Healey  06/08/13 - add CANCOND8C
 
 ; NOTE: To display this file with everything correctly lined up set your editor or IDE tab stop to 4
 
@@ -58,11 +67,27 @@ MTYP_CANACC4_2  equ 8	; 12v version of CANACC4
 MTYP_CANCAB     equ 9	; CANCAB hand throttle   
 MTYP_CANCMD     equ .10	; CANCMD command station
 MTYP_CANSERVO	equ	.11	; 8 servo driver (on canacc8 or similar hardware)
-MTYP_CANBC		equ .12	; BC1a command station
-MTYP_CANRPI		equ	.13	; RPI and RFID interface
+MTYP_CANBC	equ .12	; BC1a command station
+MTYP_CANRPI	equ	.13	; RPI and RFID interface
 MTYP_CANTTCA	equ	.14	; Turntable controller (turntable end)
 MTYP_CANTTCB	equ	.15 ; Turntable controller (control panel end)
-MTYP_CANHS		equ	.16	; Handset controller for old BC1a type handsets
+MTYP_CANHS	equ	.16	; Handset controller for old BC1a type handsets
+MTYP_CANTOTI	equ	.17	; Track occupancy detector
+
+MTYP_CAN8I8O	equ	.18	;8 input/8 output
+MTYP_CANSERVO8C	equ	.19	;Combi version of CANSERVO
+MTYP_CANRFID	equ	.20	;RFID module
+MTYP_CANTC4	equ	.21
+MTYP_CANACE16C	equ	.22	;16 input version of CANACE8C
+MTYP_CANIO8	equ	.23
+MTYP_CANSNDx	equ	.24
+MTYP_CANETHER	equ	.25	;Ethernet interface module
+MTYP_CANSIG8	equ	.26	;CANSIG8 Module Id
+MTYP_CANSIG64	equ	.27	;CANSIG64 Module Id
+MTYP_CANCOND8C	equ	.28	;CAN conditional module
+MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
+MTYP_CANUSB	equ 0xFD ; Reserved for future use
+
 
 ; Rocrail Module types
 
@@ -73,6 +98,8 @@ MTYP_CANGC4		equ	 4	; 8 channel RFID reader
 MTYP_CANGC5		equ	 5	; Cab for fixed panels (derived from cancab)
 MTYP_CANGC6		equ	 6	; 4 channel servo controller
 MTYP_CANGC7		equ	 7	; Fast clock module
+MTYP_CANGC1e    equ 11  ; CAN<->Ethernet interface
+
 
 ; Spectrum Engineering Animated Modeller module types
 
@@ -103,7 +130,6 @@ OPC_RQMN	EQU 0x11	; Request name of module type
 
 ; Packets with 1 data byte
 
-OPC_STAT    EQU 0x20    ; Command station status report
 OPC_KLOC    EQU 0x21    ; Release engine by handle
 OPC_QLOC    EQU	0x22    ; Query engine by handle
 OPC_DKEEP	EQU 0x23	; Keep alive for cab
@@ -138,6 +164,8 @@ OPC_WRACK	EQU 0x59	; Write acknowledge
 OPC_RQDAT	EQU	0x5A	; Request node data event
 OPC_RQDDS	EQU 0x5B    ; Request short data frame
 OPC_BOOT	EQU	0x5C    ; Put node into boot mode
+OPC_ENUM	EQU	0x5D	; Force canid self enumeration
+OPC_NNRST	EQU 0x5E	; Reset node
 OPC_EXTC1   EQU 0x5F    ; Extended opcode with 1 data byte
 
 ; Packets with 3 data bytes
@@ -152,6 +180,7 @@ OPC_NVRD	EQU	0x71    ; Request read of node variable
 OPC_NENRD   EQU 0x72    ; Request read stored event by index
 OPC_RQNPN	EQU	0x73	; Request read module parameters
 OPC_NUMEV   EQU 0x74    ; Number of events stored response
+OPC_CANID	EQU 0x75	; Set canid
 OPC_EXTC2   EQU 0x7F    ; Extended opcode with 2 data bytes
 
 ; Packets with 4 data bytes
@@ -217,9 +246,12 @@ OPC_EXTC5   EQU 0xDF    ; Extended opcode with 5 data bytes
 
 ; Packets with 7 data bytes
 
+
+
 OPC_RDCC6  	EQU	0xE0    ; 6 byte DCC packets
 OPC_PLOC	EQU	0xE1    ; Loco session report
 OPC_NAME	EQU 0xE2    ; Module name response
+OPC_STAT    EQU 0xE3    ; Command station status report
 OPC_PARAMS	EQU	0xEF    ; Node parameters response
 
 OPC_ACON3   EQU 0xF0    ; On event with 3 data bytes
@@ -282,6 +314,8 @@ CMDERR_INV_EV_VALUE		EQU	11
 CMDERR_INV_NV_VALUE		EQU	12
 
 ; Parameter index numbers (readable by OPC_RQNPN, returned in OPC_PARAN)
+; Index numbers count from 1, subtract 1 for offset into parameter block
+; Note that RQNPN with index 0 returns the parameter count
 
 PAR_MANU				EQU	1	; Manufacturer id
 PAR_MINVER				EQU 2	; Minor version letter
@@ -291,12 +325,61 @@ PAR_EVNUM				EQU	5	; Event variables per event
 PAR_NVNUM				EQU 6	; Number of Node variables
 PAR_MAJVER				EQU 7	; Major version number
 PAR_FLAGS				EQU 8	; Node flags
+PAR_CPUID				EQU	9	; Processor type
+PAR_BUSTYPE				EQU	10	; Bus type
+PAR_LOAD				EQU	11	; load address, 4 bytes
+
+; Offsets to other values stored at the top of the parameter block.
+; These are not returned by opcode PARAN, but are present in the hex 
+; file for FCU. 
+
+PAR_COUNT				EQU	0x18 ; Number of parameters implemented
+PAR_NAME				EQU	0x1A ; 4 byte Address of Module type name, up to 8 characters null terminated
+PAR_CKSUM				EQU	0x1E ; Checksum word at end of parameters
 
 ; Flags in PAR_FLAGS
 
+PF_NOEVENTS				equ	0
 PF_CONSUMER				equ	1
 PF_PRODUCER				equ	2
 PF_COMBI				equ	3
 PF_FLiM					equ 4
+PF_BOOT					equ 8
 
 
+; BUS type that module is connected to
+
+PB_CAN					equ 1
+PB_ETH					equ 2
+
+; Processor type codes (identifies to FCU for bootload compatiblity)
+
+P18F2480				equ	1
+P18F4480				equ	2
+P18F2580				equ	3
+P18F4580				equ	4
+P18F2585				equ	5
+P18F4585				equ	6
+P18F2680				equ	7
+P18F4680				equ	8
+P18F2682				equ	9
+P18F4682				equ	.10
+P18F2685				equ	.11
+P18F4685				equ	.12
+; Version d changed the following 6 to align with constants. inc and FCU usage
+P18F25K80				equ	.13
+P18F45K80				equ	.14
+P18F26K80				equ	.15
+P18F46K80				equ	.16
+P18F65K80				equ	.17
+P18F66K80				equ	.18
+
+P32MX534F064			equ	.30
+P32MX564F064			equ	.31
+P32MX564F128			equ	.32
+P32MX575F256			equ	.33
+P32MX575F512			equ	.34
+P32MX764F128			equ	.35
+P32MX775F256			equ	.36
+P32MX775F512			equ	.37
+P32MX795F512			equ	.38
