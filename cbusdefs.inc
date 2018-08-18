@@ -107,6 +107,7 @@ MTYP_CANWiBase  equ .38 ;CAN to MiWi base station
 MTYP_WiCAB      equ .39 ;Wireless cab using MiWi protocol
 MTYP_CANWiFi    equ .40 ;CAN to WiFi connection with Withrottle to CBUS protocol conversion
 MTYP_CANFTT     equ .41 ;Turntable controller configured using FLiM
+MTYP_CANRFID8	equ .44 ;RFID Concentrator for CBUS using CANMIO PCB (MB)
 
 MTYP_CAN_SW     equ 0xFF ; Software nodes
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
