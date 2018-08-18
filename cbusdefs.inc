@@ -40,8 +40,10 @@
 ; Pete Brownlow 5/5/14  - Remove canacc5c and cantotimio, add cansol
 ; Pete Brownlow 06/7/15 - Ver 8j Add new module types as per modules definitions v17 : CANCDU, CANACC4CDU, CANWiBase, WiCAB, CANWiFi, CANFTT
 ;                                Add new opcode ALOC, added CPU manufacturer code CPUM_ATMEL
-; Pete Brownlow  2/7/16 - Ver 8k     Add new module types CANHNDST, CANTCHNDST, CANRFID8, CANmchRFID and CANPiWi  
-;                                    Add processor codes for ARM chips used in Raspberry Pi's    
+; Mike Bolton	 2/3/16	- Ver 8k    Add module type CANRFID8
+; Pete Brownlow  2/7/16 - Ver 8m     Add new module types CANHNDST, CANTCHNDST, CANmchRFID and CANPiWi  
+;                                    Add processor codes for ARM chips used in Raspberry Pi's  
+; Pete Brownlow	 16/2/17 - Ver 8n   Add module ids to bring it up to module ids document ver 25   
 
 
 ; Manufacturers
@@ -94,12 +96,20 @@ MTYP_CANACC4CDU equ .37 ;CANACC4 firmware modified for CANCDU
 MTYP_CANWiBase  equ .38 ;CAN to MiWi base station
 MTYP_WiCAB      equ .39 ;Wireless cab using MiWi protocol
 MTYP_CANWiFi    equ .40 ;CAN to WiFi connection with Withrottle to CBUS protocol conversion
-MTYP_CANFTT     equ .41 ;Turntable controller configured using FLiM
-MTYP_CANHNDST   equ .42
-MTYP_CANTCHNDST equ .43
+MTYP_CANFTT     equ .41 ; Turntable controller configured using FLiM
+MTYP_CANHNDST   equ .42 ; Handset (alternative to CANCAB)
+MTYP_CANTCHNDST equ .43 ; Touchscreen handset
 MTYP_CANRFID8   equ .44 ; multi-channel RFID reader
 MTYP_CANmchRFID equ .45 ; either a 2ch or 8ch RFID reader
-MTYP_CANPiWi    equ .46 ; a Raspberry Pi based module for WiFi     
+MTYP_CANPiWi    equ .46 ; a Raspberry Pi based module for WiFi  
+MTYP_CAN4DC	equ .47 ; DC train controller
+MTYP_CANELEV	equ .48	; Nelevator controller
+MTYP_CANSCAN	equ .49	; 128 switch inputs
+MTYP_CANMIO_SVO	equ .50	; 16MHz 25k80 version of CANSERVO8c
+MTYP_CANMIO_INP	equ .51	; 16MHz 25k80 version of CANACE8MIO
+MTYP_CANMIO_OUT	equ .52	; 16MHz 25k80 version of CANACC8
+MTYP_CANBIP_OUT	equ .53	; 16MHz 25k80 version of CANACC5
+MTYP_CANASTOP	equ .54	; DCC stop generator    
 
 MTYP_CAN_SW     equ 0xFF ; Software nodes
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
@@ -249,7 +259,7 @@ OPC_EXTC4   EQU 0xBF    ; Extended opcode with 4 data bytes
 
 OPC_RDCC5   EQU	0xC0    ; 5 byte DCC packet
 OPC_WCVOA   EQU	0xC1    ; Write CV ops mode by address
-OPC_FCLK	EQU	0xCF	; Fast clock
+OPC_FCLK    EQU	0xCF	; Fast clock
 
 OPC_ACON2   EQU 0xD0    ; On event with two data bytes
 OPC_ACOF2   EQU 0xD1    ; Off event with two data bytes
