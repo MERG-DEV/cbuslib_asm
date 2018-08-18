@@ -1,14 +1,14 @@
-; filename evhndlr_e.asmlearnin
+; filename evhndlr_h.asm
 ; modified 05/12/11 - fix SLiM mode learning
 ; modified 06/12/11 - add learnin label
 ; 					- add movwf TABLAT to nxtfb routine for 32nd byte
 ; Rev d 09/03/12	- add checks on EN index and EV index in evsend, correct error code
 ; Rev d 22/04/12	- remove off/on of LEDs in wrflsh routine
+; Rev f             - added LOW before EEPROM addresses. Prevents error messages
+; Rev g  23/08/12	 - Extra code in 'isthere' for event delete in CANSERVO8C
+; Rev h 08/08/15 pnb - Refactored newev as a subroutine createv that can be called from elsewhere
+
 ;include file for handling flash event data
-;Rev f
-;added LOW before EEPROM addresses. Prevents error messages
-
-
 
 ;************************************************************************
 		
@@ -98,7 +98,15 @@ lrns2
 	bra		lrns1
 #endif
 	
-newev		
+newev
+    call    createv     ; create new ev entry
+    sublw   0           ; succcess?
+    bz		lrnevs      ; yes, do the event variables
+    retlw   1           ; no - return from learnin
+
+createv ; Create new event in hash table
+        ; Returns 0 for success, 1 for table full
+
 	; check remaining space
 	movlw	LOW ENindex
 	movwf	EEADR
@@ -195,7 +203,8 @@ newev3
 	call	eeread
 	decf	WREG
 	call	eewrite				;update remaining space
-	bra		lrnevs
+    retlw   0                   ; 0 indicates event created successfully
+
 
 ;**************************************************************************
 ;
@@ -319,7 +328,7 @@ copyEVs
 	addwf	Temp			;total should equal EN_NUM
 	movlw	EN_NUM
 	cpfseq	Temp
-	bra	noFreeCh
+	bra     noFreeCh
 	return					;Free chain set up so do nothing
 	
 noFreeCh
@@ -996,6 +1005,6 @@ rdFreeSp
 		
 ;************************************************************
 ;
-; End of evhndlr_f.asm
+; End of evhndlr_h.asm
 ;
 ;************************************************************
