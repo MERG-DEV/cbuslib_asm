@@ -68,9 +68,6 @@
 
 #define MODE_SELF_VERIFY  ;Enable self verification of written data (undefine if not wanted)
 
-#define HIGH_INT_VECT 0x0808  ;HP interrupt vector redirect. Change if target is different
-#define LOW_INT_VECT  0x0818  ;LP interrupt vector redirect. Change if target is different.
-#define RESET_VECT  0x0800  ;start of target
 #define CAN_CD_BIT  RXB0EIDL,0  ;Received control / data select bit
 #define CAN_PG_BIT  RXB0EIDL,1  ;Received PUT / GET bit
 #define CANTX_CD_BIT  TXB0EIDL,0  ;Transmit control/data select bit
