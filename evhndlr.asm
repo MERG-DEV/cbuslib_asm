@@ -43,7 +43,7 @@ learnin
 #else
 	btfsc	Mode,1
 	bra		lrnin1
-	btfss	PORTA,UNLEARN	;don't do if unlearn
+	btfss	UNLEARN_INP	;don't do if unlearn
 	retlw	0
 	bra		learn
 #endif
@@ -85,7 +85,7 @@ lrns				;learn event values in SLiM mode
 	iorwf	INDF0,W
 	movwf	POSTINC0	;write back to EV
 	movwf	EVtemp		;save for testing
-	btfsc	PORTB, POL
+	btfsc	POL_INP
 	bra		lrns2
 	movf	EVtemp1,w	;recover output bit
 	iorwf	INDF0		;or in POL bit
@@ -718,7 +718,6 @@ wrflsh		; write upto 32 bytes of flash
 	bcf		EECON1,CFGS
 	bcf		EECON1,FREE			;no erase
 	bsf		EECON1, WREN
-;	bsf		PORTC,2				;LEDs off
 	movff	INTCON,TempINTCON
 	clrf	INTCON
 	movlw	0x55
@@ -728,7 +727,6 @@ wrflsh		; write upto 32 bytes of flash
 	bsf		EECON1,WR
 	nop
 	movff	TempINTCON,INTCON
-;	bcf		PORTC,2				;LEDs on
 	return
 	
 ;**************************************************************************
