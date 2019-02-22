@@ -25,7 +25,7 @@ evnsend
 		movwf	Tx1d0
 		movlw	4
 		movwf	Dlc
-		call	sendTX
+		call	TX_with_NN
 		return
 
 ;**************************************************************************
@@ -792,7 +792,7 @@ endrdev
 	movff	EVdata,Tx1d6
 	movlw	7
 	movwf	Dlc
-	call	sendTXa
+	call	TX_data
 	return
 	
 ;*************************************************************************
@@ -838,7 +838,7 @@ evaddrok					; ht address is valid
 		movwf	Tx1d0
 		movlw	8
 		movwf	Dlc
-		call	sendTX
+		call	TX_with_NN
 		call	dely
 		call	dely
 		
@@ -930,7 +930,7 @@ enrdi	movlw	LOW ENindex+1	; no of events set
 		movwf	Tx1d0
 		movlw	8
 		movwf	Dlc
-		call	sendTX
+		call	TX_with_NN
 		return
 		
 noens1	movlw	7				;inavlid event index
@@ -979,7 +979,7 @@ evsend
 		movff	EVidx,Tx1d4
 		movlw	6
 		movwf	Dlc
-		call	sendTX
+		call	TX_with_NN
 		return
 
 notEV	movlw	6		;invalid EN#
@@ -1000,7 +1000,7 @@ rdFreeSp
 		movwf	Tx1d0
 		movlw	4
 		movwf	Dlc
-		call	sendTX
+		call	TX_with_NN
 		return
 		
 ;************************************************************
