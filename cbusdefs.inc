@@ -46,6 +46,7 @@
 ; Pete Brownlow	 16/2/17 - Ver 8n   Add module ids to bring it up to module ids document ver 25   
 ; Pete Brownlow	 29/7/17 - Ver 8p   Add new module ids and new cab signalling opcode 
 ; Pete Brownlow	 09/1/18 - Ver 8q   Add new parameter flag for module can consume its own events
+; Ian Hogg	 11/09/18 - Ver 8r   Added CANACE16CMIO, CANPiNODE, CANDISP, CANCOMPUTE
 
 
 ; Manufacturers
@@ -114,6 +115,12 @@ MTYP_CANBIP_OUT	equ .53	; 16MHz 25k80 version of CANACC5
 MTYP_CANASTOP	equ .54	; DCC stop generator    
 MTYP_CANCSB	equ .55	; CANCMD with additional 3-4A booster on board
 MTYP_CANMAGOT	equ .56	; Magnet on Track detector
+MTYP_CANCOMPUTE	equ .57	; Event processing engin
+MTYP_CANACE16CMIO equ .57; 16 input equivaent to CANACE8C
+MTYP_CANPiNODE  equ  .58 ; CBUS module based on Raspberry Pi
+MTYP_CANDISP    equ  .59 ; 25K80 version of CANLED64 (IHart and MB)
+MTYP_CANCOMPUTE equ  .60 ; Event processing engine
+
 
 MTYP_CAN_SW     equ 0xFF ; Software nodes
 MTYP_EMPTY      equ 0xFE ; Empty module, bootloader only
