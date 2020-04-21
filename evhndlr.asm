@@ -258,6 +258,7 @@ unl2						; read and update previous event entry
 	movff	nextadrh, POSTINC0
 	movff	nextadrl, POSTINC0
 	call	wrfbev			; write back with updated next pointer
+  bra   unl_next
 	
 unl3						;must write next ptr to hash table
 	movff	htidx, EEADR
@@ -267,6 +268,7 @@ unl3						;must write next ptr to hash table
 	movf	nextadrl,w
 	call	eewrite
 
+unl_next
 	tstfsz	nextadrh		; check if next link is valid
 	bra		unl4			; j if it is
 	bra		unl5			; no more to do
