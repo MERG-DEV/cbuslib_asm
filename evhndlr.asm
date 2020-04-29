@@ -20,9 +20,9 @@ evnsend
 		movlw	LOW ENindex+1
 		movwf	EEADR
 		call	eeread
-		movwf	Tx1d3
+		movwf	Tx_d3
 		movlw	0x74
-		movwf	Tx1d0
+		movwf	Tx_d0
 		movlw	4
 		movwf	Dlc
 		call	TX_with_NN
@@ -510,8 +510,8 @@ rdfbev		; On entry evaddrh and evaddrl must point to the correct entry
 	movwf	CountFb0
 rdfb
 	clrf	TBLPTRU
-	movff	FSR0H, Saved_Fsr0H	;must preserve FSR0
-	movff	FSR0L, Saved_Fsr0L
+	movff	FSR0H, EvHnd_FSR0H	;must preserve FSR0
+	movff	FSR0L, EvHnd_FSR0L
 	lfsr	FSR0,evt00
 nxtfbrd
 	tblrd*+
@@ -519,8 +519,8 @@ nxtfbrd
 	movwf	POSTINC0
 	decfsz	CountFb0
 	bra		nxtfbrd
-	movff	Saved_Fsr0L, FSR0L	;recover FSR0
-	movff	Saved_Fsr0H, FSR0H
+	movff	EvHnd_FSR0L, FSR0L	;recover FSR0
+	movff	EvHnd_FSR0H, FSR0H
 	return
 	
 rdfbev16		; read 16 bytes of event data, on entry evaddrh and evaddr must be valid
@@ -785,13 +785,13 @@ readev1
 	
 endrdev
 	movlw	0xD3
-	movwf	Tx1d0
-	movff	evt00,Tx1d1
-	movff	evt01,Tx1d2
-	movff	evt02,Tx1d3
-	movff	evt03,Tx1d4
-	movff	EVidx,Tx1d5
-	movff	EVdata,Tx1d6
+	movwf	Tx_d0
+	movff	evt00,Tx_d1
+	movff	evt01,Tx_d2
+	movff	evt02,Tx_d3
+	movff	evt03,Tx_d4
+	movff	EVidx,Tx_d5
+	movff	EVdata,Tx_d6
 	movlw	7
 	movwf	Dlc
 	call	TX_data
@@ -808,7 +808,7 @@ enread	clrf	Temp
 		sublw	0
 		bz		noens		;no events set
 		
-		clrf	Tx1d7		; first event
+		clrf	Tx_d7		; first event
 		movlw	HASH_SZ			; hash table size
 		movwf	ENcount	
 		movlw	LOW hashtab
@@ -830,14 +830,14 @@ nxthtab
 		
 evaddrok					; ht address is valid
 		call	rdfbev8		; read 8 bytes from event info
-		incf	Tx1d7
-		movff	evt00, Tx1d3
-		movff	evt01, Tx1d4
-		movff	evt02, Tx1d5
-		movff	evt03, Tx1d6
+		incf	Tx_d7
+		movff	evt00, Tx_d3
+		movff	evt01, Tx_d4
+		movff	evt02, Tx_d5
+		movff	evt03, Tx_d6
 		
 		movlw	0xF2
-		movwf	Tx1d0
+		movwf	Tx_d0
 		movlw	8
 		movwf	Dlc
 		call	TX_with_NN
@@ -922,14 +922,14 @@ enrdi	movlw	LOW ENindex+1	; no of events set
 		call	findEN
 		call	rdfbev8		; get event data
 		
-		movff	evt00, Tx1d3
-		movff	evt01, Tx1d4
-		movff	evt02, Tx1d5
-		movff	evt03, Tx1d6
+		movff	evt00, Tx_d3
+		movff	evt01, Tx_d4
+		movff	evt02, Tx_d5
+		movff	evt03, Tx_d6
 		incf	ENidx
-		movff	ENidx, Tx1d7
+		movff	ENidx, Tx_d7
 		movlw	0xF2
-		movwf	Tx1d0
+		movwf	Tx_d0
 		movlw	8
 		movwf	Dlc
 		call	TX_with_NN
@@ -972,13 +972,13 @@ evsend
 		call	rdfbev16	; read event data
 		lfsr	FSR0,ev00
 		movf	EVidx,w
-		movff	PLUSW0, Tx1d5
+		movff	PLUSW0, Tx_d5
 		incf	EVidx		; make 1 based again...
 		incf	ENidx		; ... ditto
 		movlw	0xB5
-		movwf	Tx1d0
-		movff	ENidx,Tx1d3
-		movff	EVidx,Tx1d4
+		movwf	Tx_d0
+		movff	ENidx,Tx_d3
+		movff	EVidx,Tx_d4
 		movlw	6
 		movwf	Dlc
 		call	TX_with_NN
@@ -997,9 +997,9 @@ rdFreeSp
 		movlw	LOW ENindex		;read free space
 		movwf	EEADR
 		call	eeread
-		movwf	Tx1d3
+		movwf	Tx_d3
 		movlw	0x70
-		movwf	Tx1d0
+		movwf	Tx_d0
 		movlw	4
 		movwf	Dlc
 		call	TX_with_NN
