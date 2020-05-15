@@ -1,1012 +1,1191 @@
 ; filename evhndlr_h.asm
 ; modified 05/12/11 - fix SLiM mode learning
 ; modified 06/12/11 - add learnin label
-; 					- add movwf TABLAT to nxtfb routine for 32nd byte
-; Rev d 09/03/12	- add checks on EN index and EV index in evsend, correct error code
-; Rev d 22/04/12	- remove off/on of LEDs in wrflsh routine
+;           - add movwf TABLAT to nxtfb routine for 32nd byte
+; Rev d 09/03/12  - add checks on EN index and EV index in evsend, correct error code
+; Rev d 22/04/12  - remove off/on of LEDs in wrflsh routine
 ; Rev f             - added LOW before EEPROM addresses. Prevents error messages
-; Rev g  23/08/12	 - Extra code in 'isthere' for event delete in CANSERVO8C
+; Rev g  23/08/12  - Extra code in 'isthere' for event delete in CANSERVO8C
 ; Rev h 08/08/15 pnb - Refactored newev as a subroutine createv that can be called from elsewhere
-; Rev j 18/2/17  pnb - Make compatible with 25k80 by clearing EEADRH before EEPROM ops (only uses first 256 bytes of EEPROM except for high byte for bootloader)        
+; Rev j 18/2/17  pnb - Make compatible with 25k80 by clearing EEADRH before EEPROM ops (only uses first 256 bytes of EEPROM except for high byte for bootloader)
 
 ;include file for handling flash event data
 
-;************************************************************************
-		
-;		send number of events
+#define  Skip_If_Reloading_Events      btfss initFlags,0
+#define  Skip_If_Not_Reloading_Events  btfsc initFlags,0
+#define  Set_Reloading_Events          bsf initFlags,0
+#define  Unset_Reloading_Events        bcf initFlags,0
 
-evnsend
-        clrf    EEADRH
-		movlw	LOW ENindex+1
-		movwf	EEADR
-		call	eeread
-		movwf	Tx_d3
-		movlw	0x74
-		movwf	Tx_d0
-		movlw	4
-		movwf	Dlc
-		call	TX_with_NN
-		return
+;******************************************************************************
+; RAM storage
+  CBLOCK EVENT_RAM
 
-;**************************************************************************
-;
-;	learn an event
-;
-;	The event must be in ev0, ev1, ev2 & ev3
-;	The EV index in EVidx and the value in EVdata
-;
+  ; 64 bytes of event data (4 events of 16 bytes each)
+  ;   - the quanta size for updating linked list in Flash
+  evt00     ; Event Node Number high byte
+  evt01     ; Event Node Number low byte
+  evt02     ; Event Number high byte
+  evt03     ; Event Number high byte
+  next_entry_address_0_high
+  next_entry_address_0_low
+  previous_entry_address_0_high
+  previous_entry_address_0_low
+  ; Up to eight event variables
+  ev00
+  ev01
+  ev02
+  ev03
+  ev04
+  ev05
+  ev06
+  ev07
+
+  evt10
+  evt11
+  evt12
+  evt13
+  next_entry_address_1_high
+  next_entry_address_1_low
+  previous_entry_address_1_high
+  previous_entry_address_1_low
+  ev10
+  ev11
+  ev12
+  ev13
+  ev14
+  ev15
+  ev16
+  ev17
+
+  evt20
+  evt21
+  evt22
+  evt23
+  next_entry_address_2_high
+  next_entry_address_2_low
+  previous_entry_address_2_high
+  previous_entry_address_2_low
+  ev20
+  ev21
+  ev22
+  ev23
+  ev24
+  ev25
+  ev26
+  ev27
+
+  evt30
+  evt31
+  evt32
+  evt33
+  next_entry_address_3_high
+  next_entry_address_3_low
+  previous_entry_address_3_high
+  previous_entry_address_3_low
+  ev30
+  ev31
+  ev32
+  ev33
+  ev34
+  ev35
+  ev36
+  ev37
+
+  ENDC
+
+
+
+;******************************************************************************
+;   Send number of learnt events currently stored
+
+send_number_of_events
+  clrf    EEADRH
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  movwf   Tx_d3
+  movlw   OPC_NUMEV
+  movwf   Tx_d0
+  movlw   4
+  movwf   Tx_dlc
+  bra     tx_with_node_number
+
+
+
+;******************************************************************************
+;   Learn an event and if in FLiM learn an event variable, in SLiM modify event
+;   variables based on switch settings
+;     The event Node Number must be in ev0 and ev1
+;     The Event Number must be in ev2 and ev3
+;     The event variable offset, already converted from an index, must be in
+;     event_variable_index and the event variable value in event_variable_value
+;     Return:
+;       W = 0 if successful, otherwise W != 0
+;       Hash for event in current_hash_number
+;       Hashtable entry for event in current_hashtable_entry
+;       Head of list for hash in current_event_list_head_high,
+;       current_event_list_head_low
+;       Event entry address in current_event_address_high,
+;       current_event_address_low
+
+learn_event
 ; define FLIM_ONLY for CANSERVO
-
-learnin
-#ifdef	FLIM_ONLY
-	bra	lrnin1
-#else
-	btfsc	Mode,1
-	bra		lrnin1
-	btfss	UNLEARN_INP	;don't do if unlearn
-	retlw	0
-	bra		learn
-#endif
-	
-lrnin1
-	btfsc	Datmode, 5		;don't do if unlearn
-	retlw	0
-
-learn		; data is in ev(n), EVdata and EVidx
-	call	enmatch	
-	sublw	0
-	bnz		newev
-	call	rdfbev			;read events data
-		
-	; sort out EVs here
-lrnevs	
-	btfsc	initFlags,0
-	bra		lrnevs1		;j if initialising event data
-#ifndef		FLIM_ONLY
-	btfss	Mode,1		;FLiM mode?
-	bra		lrns
+#ifndef  FLIM_ONLY
+  Skip_If_SLiM
+  bra     do_event_learn
+  Skip_If_Not_Unlearn
+  retlw   0
 #endif
 
-lrnevs1
-	movf	EVidx,w		;FLiM mode or init, just write new ev to event data
-	movff	EVdata, PLUSW0
-	call	wrfbev		; write back to flash
-	btfsc	initFlags,0
-	retlw	0			;dont send WRACK on initialisation
-	movlw	0x59
-	call	nnrel		;send WRACK
-	retlw	0
+do_event_learn
+  call    find_event
+  bnz     learn_new_event
+  call    fetch_event_data
 
-#ifndef	FLIM_ONLY	
-lrns				;learn event values in SLiM mode
-	call	getop	;returns switch data in EVtemp
-	movff	EVtemp, EVtemp1	;make a copy
-	movf	EVtemp1,W
-	iorwf	INDF0,W
-	movwf	POSTINC0	;write back to EV
-	movwf	EVtemp		;save for testing
-	btfsc	POL_INP
-	bra		lrns2
-	movf	EVtemp1,w	;recover output bit
-	iorwf	INDF0		;or in POL bit
-lrns1
-	movff	INDF0,EVtemp2		;save for testing
-	call	wrfbev		;write back to flash
-	retlw	0
-	
-lrns2
-	comf	EVtemp1,w
-	andwf	INDF0		;remove POL bit
-	bra		lrns1
+learn_event_variable
+  Skip_If_Not_Reloading_Events
+  bra     learn_indexed_event_variable
+#ifndef   FLIM_ONLY
+  Skip_If_FLiM
+  bra     learn_in_slim
 #endif
-	
-newev
-    call    createv     ; create new ev entry
-    sublw   0           ; succcess?
-    bz		lrnevs      ; yes, do the event variables
-    retlw   1           ; no - return from learnin
 
-createv ; Create new event in hash table
-        ; Returns 0 for success, 1 for table full
+learn_indexed_event_variable
+  movf    event_variable_index,W
+  movff   event_variable_value, PLUSW0
+  call    store_event_data
+  movlw   OPC_WRACK
+  Skip_If_Reloading_Events
+  call    tx_without_data
+  retlw   0
 
-	; check remaining space
-	movlw	LOW ENindex
-	movwf	EEADR
-	call	eeread
-	sublw	0
-	bnz		lrn1
-	retlw	1		; no space left
-	
-lrn1	
-	movlw	LOW FreeCh	; get free chain pointer
-	movwf	EEADR
-	call	eeread
-	movwf	evaddrh
-	movlw	LOW FreeCh + 1
-	movwf	EEADR
-	call	eeread
-	movwf	evaddrl
-	
-	; now check and update hash table pointer
-	tstfsz	htaddrh
-	bra		lrnhtok
-	bra		newev2		;j if no hash table for this event
+#ifndef FLIM_ONLY
+learn_in_slim
+  ; In SLiM selection and polarity switches are read then event variables for
+  ; both activation and inversion are set appropriately
+  call    get_selected_output_pair
 
-lrnhtok				; hash table pointer is valid so read data
-	call	rdfbht		; read from hash table address
-	movf	htaddrl, w
-	call	setFsr0
-	movlw	6
-	addwf	FSR0L
-	movff	evaddrh, POSTINC0
-	movff	evaddrl, POSTINC0
-	call	wrfbht		; write back using hash table address
-	
-newev2		; read free chain data block
-	call	rdfbev		; read free chain entry	
-	movf	evaddrl, w
-	call	setFsr0
-	movlw	4
-	addwf	FSR0L		;point at nextnh
-	
-	; now update FreeCh with next event pointer from event data
-	movlw	LOW FreeCh
-	movwf	EEADR
-	movf	POSTINC0,W
-	call	eewrite
-	
-	movlw	LOW FreeCh+1
-	movwf	EEADR
-	movf	POSTINC0,W
-	call	eewrite	
-	
-	; write new event address to hash table
-	movff	htidx, EEADR
-	movf	evaddrh,w
-	call	eewrite
-	incf	EEADR
-	movf	evaddrl,w
-	call	eewrite
+  ; Set appropriate activation bit in first event variable
+  movff   event_variable_1, copy_of_event_variable_1
+  movf    copy_of_event_variable_1,W
+  iorwf   INDF0,W                      ; Add already set bits for variable
+  movwf   POSTINC0
+  movwf   event_variable_1              ; Save for testing later
 
-	movf	evaddrl, W
-	call	setFsr0
-	movff	ev0,POSTINC0
-	movff	ev1,POSTINC0
-	movff	ev2,POSTINC0
-	movff	ev3,POSTINC0
-	movff	htaddrh, POSTINC0		; copy previous head of chain address
-	movff	htaddrl, POSTINC0
-	clrf	POSTINC0				; clear previous ptr
-	clrf	POSTINC0
-	
-	movlw	.8
-	movwf	CountFb0
-	movlw	0
-	
-newev3
-	clrf	PLUSW0			; clear event data, leave FSR0 alone
-	incf	WREG
-	decfsz	CountFb0
-	bra		newev3
-	
-	movf	hnum,w				; hash number of event
-	addlw	LOW hashnum			; update count of events in this hash
-	movwf	EEADR
-	call	eeread
-	incf	WREG
-	call	eewrite
-	
-	movlw	LOW ENindex + 1		;update number of events
-	movwf	EEADR
-	call	eeread
-	addlw	1
-	call	eewrite
-	decf	EEADR
-	call	eeread
-	decf	WREG
-	call	eewrite				;update remaining space
-    retlw   0                   ; 0 indicates event created successfully
+  btfsc   Polarity_Input
+  bra     learn_normal_polarity
+
+  ; Set appropriate inversion bit in second event variable
+  movf    copy_of_event_variable_1,W
+  iorwf   INDF0,F
+
+store_learnt_event_variables
+  movff   INDF0, event_variable_2       ; Save for testing later
+  call    store_event_data
+  retlw   0
+
+learn_normal_polarity
+  ; Clear appropriate inversion bit in second event variable
+  comf    copy_of_event_variable_1,W
+  andwf   INDF0
+  bra     store_learnt_event_variables
+#endif
+
+learn_new_event
+  call    create_new_event_entry
+  sublw   0
+  bz      learn_event_variable
+  retlw   1
 
 
-;**************************************************************************
-;
-;	unlearn an event
-;	The event must be in ev0, ev1, ev2 & ev3
 
-unlearn			; on entry the target event number must be in ev0-3
-	call	enmatch
-	sublw	0
-	bz		unl1			; j if event found
-	return
-	
-unl1
-	movlw	LOW FreeCh		; get free chain address
-	movwf	EEADR
-	call	eeread
-	movwf	freadrh
-	movlw	LOW FreeCh+1
-	movwf	EEADR
-	call	eeread
-	movwf	freadrl
-	
-	call	rdfbev				; read entry
-	movf	evaddrl,W
-	call	setFsr0				;point FSR0 at relevant data
-	movlw	4
-	addwf	FSR0L				;adjust to point at nextnh
-	movff	INDF0, nextadrh		;save chain pointers
-	movff	freadrh,POSTINC0	; set next ptr to current free chain
-	movff	INDF0, nextadrl		; ditto with ls addr
-	movff	freadrl, POSTINC0
-	movff	INDF0, prevadrh		;save prevnh
-	clrf	POSTINC0			; clear previous entry ponter
-	movff	INDF0, prevadrl		;save prevnl
-	clrf	POSTINC0
+;******************************************************************************
+;   Create a hashtable entry for a new event
+;     The event Node Number must be in ev0 and ev1
+;     The Event Number must be in ev2 and ev3
+;     Hashtable entry for event must be in current_hashtable_entry
+;     Head of list for hash must be in current_event_list_head_high,
+;     current_event_list_head_low
+;     Return:
+;       W = 0 if successful, otherwise W != 0
+;       Event entry address in current_event_address_high,
+;       current_event_address_low
+;       FSR0 addresses event variables in event entry
 
-	movlw	LOW FreeCh		; update free chain address to current entry
-	movwf	EEADR
-	movf	evaddrh,w
-	call	eewrite
-	movlw	LOW FreeCh+1
-	movwf	EEADR
-	movf	evaddrl,w
-	call	eewrite
-	
-	call	wrfbev			; write freed event data back
-	
-	tstfsz	prevadrh		; check if previous link id valid
-	bra		unl2			; j if it is
-	bra		unl3
+create_new_event_entry
+  movlw   low free_event_space
+  call    read_ee_at_address
+  sublw   0
+  btfsc   STATUS, Z
+  retlw   1
 
-unl2						; read and update previous event entry
-	movff	prevadrh, evaddrh
-	movff	prevadrl, evaddrl
-	call	rdfbev
-	movf	evaddrl,W
-	call	setFsr0				;point FSR0 at relevant data
-	movlw	4
-	addwf	FSR0L
-	movff	nextadrh, POSTINC0
-	movff	nextadrl, POSTINC0
-	call	wrfbev			; write back with updated next pointer
-  bra   unl_next
-	
-unl3						;must write next ptr to hash table
-	movff	htidx, EEADR
-	movf	nextadrh,w
-	call	eewrite
-	incf	EEADR
-	movf	nextadrl,w
-	call	eewrite
+  ; Event will be stored in the next free entry
+  movlw   low next_free_event_entry
+  call    read_ee_at_address
+  movwf   current_event_address_high
+  incf    EEADR,F
+  call    read_ee
+  movwf   current_event_address_low
 
-unl_next
-	tstfsz	nextadrh		; check if next link is valid
-	bra		unl4			; j if it is
-	bra		unl5			; no more to do
-	
-unl4
-	movff	nextadrh, evaddrh
-	movff	nextadrl, evaddrl
-	call	rdfbev
-	movf	evaddrl,W
-	call	setFsr0				;point FSR0 at relevant data
-	movlw	6
-	addwf	FSR0L				;adjust to point at prevnh
-	movff	prevadrh, POSTINC0
-	movff	prevadrl, POSTINC0
-	call	wrfbev
+  tstfsz  current_event_list_head_high
+  bra     push_new_event_to_list_head
+  bra     set_new_event_as_list_head
 
-unl5
-	movf	hnum, w				; hash number of event
-	addlw	LOW hashnum			; update number of events for this hash
-	movwf	EEADR
-	call	eeread
-	decf	WREG
-	call	eewrite
+push_new_event_to_list_head
+  ; Fetch current head of list and set FSR0 to point at entry
+  call    fetch_event_list_data
+  movf    current_event_list_head_low,W
+  call    set_FSR0_to_event_entry
 
-	movlw	LOW ENindex + 1			;update no of events and free space 
-	movwf	EEADR
-	call	eeread
-	decf	WREG
-	call	eewrite					;no of events
-	decf	EEADR
-	call	eeread
-	addlw	1
-	call	eewrite					;free space
-	return
-	
-;**************************************************************************
-;
-; copy all EEPROM events to Flash if FLASH not initialised.
+  ; Set previous event address for old list head as that of new event
+  movlw   6
+  addwf   FSR0L
+  movff   current_event_address_high, POSTINC0
+  movff   current_event_address_low, POSTINC0
+  call    store_hashtable_data
+
+set_new_event_as_list_head
+  ; Fetch entry for new event and set FSR0 to point to it
+  call    fetch_event_data
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+
+  ; Set next free entry as next event address from new event
+  movlw   4
+  addwf   FSR0L
+
+  movlw   low next_free_event_entry
+  movwf   EEADR
+  movf    POSTINC0,W
+  call    write_ee
+
+  movlw   low next_free_event_entry + 1
+  movwf   EEADR
+  movf    POSTINC0,W
+  call    write_ee
+
+  ; Update head of list address stored in hash table
+  movff   current_hashtable_entry, EEADR
+  movf    current_event_address_high,W
+  call    write_ee
+  incf    EEADR
+  movf    current_event_address_low,W
+  call    write_ee
+
+  ; Write event details into list entry
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+  movff   ev0, POSTINC0
+  movff   ev1, POSTINC0
+  movff   ev2, POSTINC0
+  movff   ev3, POSTINC0
+
+  ; Set next event to previous head of list
+  movff   current_event_list_head_high, POSTINC0
+  movff   current_event_list_head_low, POSTINC0
+
+  ; No previous event as new event is now head of list
+  clrf    POSTINC0
+  clrf    POSTINC0
+
+  ; Clear new event variables
+  movlw   8
+  movwf   flash_access_counter_0
+  movlw   0
+
+clear_new_event_variables_loop
+  clrf    PLUSW0
+  incf    WREG,F
+  decfsz  flash_access_counter_0,F
+  bra     clear_new_event_variables_loop
+
+  ; Increment number of events stored against this hash
+  movf    current_hash_number,W
+  addlw   low hash_number_event_counts
+  call    read_ee_at_address
+  incf    WREG,F
+  call    write_ee
+
+  ; Increment number of events stored
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  incf    WREG,F
+  call    write_ee
+
+  ; Decrement remaining event space
+  decf    EEADR,F
+  call    read_ee
+  decf    WREG,F
+  call    write_ee
+
+  retlw   0
+
+
+
+;******************************************************************************
+;   Unlearn an event
+;     The event Node Number must be in ev0 and ev1
+;     The Event Number must be in ev2 and ev3
+
+forget_event
+  call    find_event
+  btfss   STATUS, Z
+  return
+
+;   The event to unlearn is currently the member of an events list. It must be
+;   removed from that list and placed as the new head of the free events list.
+
+  ; Get address of current head of free events list
+  movlw   low next_free_event_entry
+  call    read_ee_at_address
+  movwf   current_free_entry_address_high
+  incf    EEADR,F
+  call    read_ee
+  movwf   current_free_entry_address_low
+
+  ; Fetch entry for event to forget and set FSR0 to point to it
+  call    fetch_event_data
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+
+  ; For the event to forget set its next event address to the current head of
+  ; the free entries list and previous event address to null
+  ; Copy its next and previous event addresses as these will be needed to heal
+  ; the events list from which it is being removed
+  movlw   4
+  addwf   FSR0L
+  movff   INDF0, next_event_address_high
+  movff   current_free_entry_address_high, POSTINC0
+  movff   INDF0, next_event_address_low
+  movff   current_free_entry_address_low, POSTINC0
+
+  movff   INDF0, previous_event_address_high
+  clrf    POSTINC0
+  movff   INDF0, previous_event_address_low
+  clrf    POSTINC0
+
+  ; Make the event to forget the new head of the free event entries list
+  movlw   low next_free_event_entry
+  movwf   EEADR
+  movf    current_event_address_high,W
+  call    write_ee
+  incf    EEADR,F
+  movf    current_event_address_low,W
+  call    write_ee
+
+  call    store_event_data
+
+  ; Heal the event list from which the event to forget is being removed
+  tstfsz  previous_event_address_high
+  bra     fix_previous_event
+  bra     remove_event_from_head_of_list
+
+fix_previous_event
+  ; Fetch previous event and set FSR0 to point at entry
+  movff   previous_event_address_high, current_event_address_high
+  movff   previous_event_address_low, current_event_address_low
+  call    fetch_event_data
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+
+  ; Event to forget is no longer next event of its previous event
+  movlw   4
+  addwf   FSR0L
+  movff   next_event_address_high, POSTINC0
+  movff   next_event_address_low, POSTINC0
+  call    store_event_data
+
+  bra     check_if_there_was_a_next_event
+
+remove_event_from_head_of_list
+  movff   current_hashtable_entry, EEADR
+  movf    next_event_address_high,W
+  call    write_ee
+  incf    EEADR
+  movf    next_event_address_low,W
+  call    write_ee
+
+check_if_there_was_a_next_event
+  tstfsz  next_event_address_high
+  bra     fix_next_event
+  bra     event_removed_from_list
+
+fix_next_event
+  ; Fetch next event and set FSR0 to point at entry
+  movff   next_event_address_high, current_event_address_high
+  movff   next_event_address_low, current_event_address_low
+  call    fetch_event_data
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+
+  ; Event to forget is no longer previous event of its next event
+  movlw   6
+  addwf   FSR0L
+  movff   previous_event_address_high, POSTINC0
+  movff   previous_event_address_low, POSTINC0
+  call    store_event_data
+
+event_removed_from_list
+  movf    current_hash_number,W
+  addlw   low hash_number_event_counts
+  call    read_ee_at_address
+  decf    WREG,F
+  call    write_ee
+
+  ; Increase free event space count
+  movlw   low free_event_space
+  call    read_ee_at_address
+  incf    WREG,F
+  call    write_ee
+
+  ; Decrease stored events count
+  incf    EEADR,F
+  call    read_ee
+  decf    WREG,F
+  bra     write_ee
+
+
+
+;******************************************************************************
+;   Test if events areCopy all EEPROM events to Flash if FLASH not initialised.
 ; initialises Free chain and moves all existing events to Flash
-; 
+;
 
-copyEVs
-	clrf	initFlags
-	movlw	LOW ENindex
-	movwf	EEADR
-	call	eeread			;get free space
-	movwf	Temp
-	incf	EEADR
-	call	eeread			;get num of events
-	addwf	Temp			;total should equal EVT_NUM
-	movlw	EVT_NUM
-	cpfseq	Temp
-	bra     noFreeCh
-	return					;Free chain set up so do nothing
-	
-noFreeCh
-	call	en_ram			;copy events from EEPROM to RAM
-	movlw	LOW ENindex+1	;get number of events
-	movwf	EEADR
-	call	eeread			;number of events
-	movwf	ENcount			;save count
-	
-	call	initevdata		;create free chain
-	
-	tstfsz	ENcount			;check if any events to copy
-	bra		docopy			;j if there are...
-	return					;...else no more to do
-	
+reload_events
+  Unset_Reloading_Events
+  movlw   low free_event_space
+  call    read_ee_at_address
+  movwf   Temp
+  incf    EEADR
+  call    read_ee      ;get num of events
+  addwf   Temp      ;total should equal NUMBER_OF_EVENTS
+  movlw   NUMBER_OF_EVENTS
+  cpfseq  Temp
+  bra     events_not_loaded
+  return          ;Free chain set up so do nothing
+
+events_not_loaded
+  call    copy_events_to_ram
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  movwf   ENcount     ;save count
+
+  call    initialise_event_data    ;create free chain
+
+  tstfsz  ENcount     ;check if any events to copy
+  bra     docopy      ;j if there are...
+  return          ;...else no more to do
+
 docopy
-	bsf		initFlags,0		;for learn routine
-	lfsr	FSR1, EN1
-	lfsr	FSR2, EV1
-	
+  Set_Reloading_Events
+  lfsr    FSR1, EN1
+  lfsr    FSR2, EV1
+
 cynxten
-	movff	POSTINC1, ev0
-	movff	POSTINC1, ev1
-	movff	POSTINC1, ev2
-	movff	POSTINC1, ev3
-	movlw	0				; index of first EV
-	movwf	EVidx
-	movff	POSTINC2, EVdata
-	call 	learn
-	movlw	1				; index of second EV
-	movwf	EVidx
-	movff	POSTINC2, EVdata
-	call	learn
-	decfsz	ENcount
-	bra		cynxten
-	
-	clrf	initFlags
-	return
-	
+  movff   POSTINC1, ev0
+  movff   POSTINC1, ev1
+  movff   POSTINC1, ev2
+  movff   POSTINC1, ev3
 
-;**************************************************************************
+cynxten_variables
+  movlw   VARIABLES_PER_EVENT
+  movwf   event_variable_index
+  movff   POSTINC2, event_variable_value
+  call    learn_event
+  decfsz  event_variable_index
+  bra     cynxten_variables
+
+  decfsz  ENcount
+  bra     cynxten
+
+  Unset_Reloading_Events
+  return
+
+
+
+;******************************************************************************
+;   Clear all event data, clear hash table, and initialise free event list
 ;
-; clear all events and associated data structures
-; Each event is stored as a 16 byte entity
-; Bytes 0-3 are the event number
-; Bytes 4-5 are the pointer to the next entry, 0 if none
-; Bytes 6-7 are the pointer to the previous entry, 0 if none
-; Bytes 8-15 contain the events data, usage depends on the actual module
+; Each event is stored as a 16 byte entry in the list:
+;   Bytes 0-1 are the event Node Number
+;   Bytes 2-3 are the Event Number
+;   Bytes 4-5 are the pointer to the next entry, 0 if none
+;   Bytes 6-7 are the pointer to the previous entry, 0 if none
+;   Bytes 8-15 contain the events data, usage depends on the actual module
+
+initialise_event_data
+  ; Initialise free event space count
+  movlw   low free_event_space
+  movwf   EEADR
+  movlw   NUMBER_OF_EVENTS
+  call    write_ee
+
+  ; Clear stored events count
+  incf    EEADR,F
+  clrf    WREG
+  call    write_ee
+
+  movlw   NUMBER_OF_HASH_TABLE_ENTRIES * 2
+  movwf   loop_counter
+  movlw   low hashtable
+  movwf   EEADR
+
+clear_hashtable
+  clrf    WREG
+  call    write_ee
+  incf    EEADR,F
+  decfsz  loop_counter
+  bra     clear_hashtable
+
+  movlw   NUMBER_OF_HASH_TABLE_ENTRIES
+  movwf   loop_counter
+  movlw   low hash_number_event_counts
+  movwf   EEADR
+
+clear_hash_event_count
+  clrf    WREG
+  call    write_ee
+  incf    EEADR,F
+  decfsz  loop_counter
+  bra     clear_hash_event_count
+
+  call    clear_event_store
+
+  ; Initially all events are in the free event list
+  movlw   low next_free_event_entry
+  movwf   EEADR
+  movlw   high event_storage
+  movwf   current_event_address_high
+  call    write_ee
+  incf    EEADR,F
+  clrf    WREG
+  movwf   current_event_address_low
+  call    write_ee
+
+  lfsr    FSR0, evt00
+  movlw   64
+  movwf   loop_counter
+
+clear_event_ram
+  clrf    POSTINC0
+  decfsz  loop_counter,F
+  bra     clear_event_ram
+
+  clrf    previous_event_address_high
+  clrf    previous_event_address_low
+
+  movlw   NUMBER_OF_EVENTS
+  movwf   loop_counter
+
+initialise_next_event_block
+  movff   current_event_address_low, Temp
+  movff   current_event_address_high, Temp1
+
+initialise_next_event
+  movf    Temp,W
+  call    set_FSR0_to_event_entry
+  movlw   16
+  addwf   Temp
+  clrf    WREG
+  addwfc  Temp1
+
+  ; Clear event Node Number and Event Number
+  clrf    POSTINC0
+  clrf    POSTINC0
+  clrf    POSTINC0
+  clrf    POSTINC0
+  decf    loop_counter
+  bz      initialise_last_event
+
+  ; Initialise next and previous event addresses
+  movff   Temp1, POSTINC0
+  movff   Temp, POSTINC0
+  movff   previous_event_address_high, POSTINC0
+  movff   previous_event_address_low, POSTINC0
+
+  ; Current event will be previous event for next event
+  movff   current_event_address_high, previous_event_address_high
+  movff   current_event_address_low, previous_event_address_low
+
+  movf    loop_counter,W
+  andlw   0x03                      ; Each block contains 4 events
+  bz      event_block_initialised
+
+  ; Move on to next event, each event occupies 16 bytes
+  movlw   16
+  addwf   current_event_address_low
+  clrf    WREG
+  addwfc  current_event_address_high
+  bra     initialise_next_event
+
+event_block_initialised
+  call    store_event_data
+
+  ; Move on to next 64 byte block (4 events)
+  movlw   16
+  addwf   current_event_address_low,F
+  clrf    WREG
+  addwfc  current_event_address_high
+  bra     initialise_next_event_block
+
+initialise_last_event
+  ; There is no next event for the very last event
+  clrf    Temp
+  movff   Temp, POSTINC0
+  movff   Temp, POSTINC0
+
+  ; Initialise previous event addresses
+  movff   previous_event_address_high, POSTINC0
+  movff   previous_event_address_low, POSTINC0
+  call    store_event_data
+  return
+
+
+
+;******************************************************************************
+;   Read 64 bytes of event list data
+;     current_event_list_head_high, current_event_list_head_low contain
+;     address to read from
+;     Data is read into RAM starting at evt00
+
+fetch_event_list_data
+  movlw   0xc0
+  andwf   current_event_list_head_low,W   ; Align to 64 byte boundary
+  movwf   TBLPTRL
+  movf    current_event_list_head_high,W
+  movwf   TBLPTRH
+  bra     read_event_table
+
+
+
+;******************************************************************************
+;   Read first 16 bytes of event data
+;     current_event_address_high, current_event_address_low contain address to
+;     read from
+;     Data is read into RAM starting at evt00
+
+fetch_16_bytes_of_event_data
+  movff   current_event_address_high, TBLPTRH
+  movff   current_event_address_low, TBLPTRL
+  movlw   16
+  bra     read_flash_table
+
+;******************************************************************************
+;   Read first 8 bytes of event data
+;     current_event_address_high, current_event_address_low contain address to
+;     read from
+;     Data is read into RAM starting at evt00
+
+fetch_8_bytes_of_event_data
+  movff   current_event_address_high, TBLPTRH
+  movff   current_event_address_low, TBLPTRL
+  movlw   8
+  bra     read_flash_table
+
+;******************************************************************************
+;   Read 64 bytes of event data
+;     current_event_address_high, current_event_address_low contain address to
+;     read from
+;     Data is read into RAM starting at evt00
+
+fetch_event_data
+  movlw   0xc0
+  andwf   current_event_address_low,W      ; Align to 64 byte boundary
+  movwf   TBLPTRL
+  movf    current_event_address_high,W
+  movwf   TBLPTRH
+
+read_event_table
+  movlw   64
+
+read_flash_table
+  movwf   flash_access_counter_0
+  clrf    TBLPTRU
+  movff   FSR0H, saved_FSR0H
+  movff   FSR0L, saved_FSR0L
+  lfsr    FSR0, evt00
+
+read_next_flash_table_entry
+  tblrd*+
+  movf    TABLAT,W
+  movwf   POSTINC0
+  decfsz  flash_access_counter_0
+  bra     read_next_flash_table_entry
+
+  movff   saved_FSR0L, FSR0L
+  movff   saved_FSR0H, FSR0H
+
+  return
+
+
+
+;******************************************************************************
+;   Find entry for event
+;     The event Node Number must be in ev0 and ev1
+;     The Event Number must be in ev2 and ev3
+;     Return:
+;       STATUS, Zset if successful, otherwise STATUS, Zclear
+;       Hash for event in current_hash_number
+;       Hashtable entry for event in current_hashtable_entry
+;       Head of list for hash in current_event_list_head_high,
+;       current_event_list_head_low
+;       Event entry address in current_event_address_high,
+;       current_event_address_low
+;       FSR0 addresses event variables in event entry
+
+find_event
+  ; Form hash from last 3 bit of Event Number
+  movlw   0x07
+  andwf   ev3,W
+  movwf   Temp
+  movwf   current_hash_number
+
+  ; Convert hash into table entry address in EEPROM
+  rlncf   Temp                      ; x 2 as two bytes per table entry
+  movlw   low hashtable
+  addwf   Temp,W
+  movwf   current_hashtable_entry
+
+  ; Get event list base start address from hash table entry
+  call    read_ee_at_address
+  movwf   current_event_address_high
+  movwf   current_event_list_head_high
+  incf    EEADR
+  call    read_ee
+  movwf   current_event_address_low
+  movwf   current_event_list_head_low
+
+find_event_loop
+  tstfsz  current_event_address_high
+  bra     current_event_address_valid
+  bcf     STATUS, Z
+  return
+
+current_event_address_valid
+  movf    current_event_address_low,W
+  movwf   TBLPTRL
+  movf    current_event_address_high,W
+  movwf   TBLPTRH
+  clrf    TBLPTRU
+
+  clrf    Match
+  tblrd*+
+  movf    TABLAT,W
+  cpfseq  ev0
+  incf    Match
+
+  tblrd*+
+  movf    TABLAT,W
+  cpfseq  ev1
+  incf    Match
+
+  tblrd*+
+  movf    TABLAT,W
+  cpfseq  ev2
+  incf    Match
+
+  tblrd*+
+  movf    TABLAT,W
+  cpfseq  ev3
+  incf    Match
+
+  tstfsz  Match
+  bra     try_next_event_entry
+
+  movf    current_event_address_low,W
+  call    set_FSR0_to_event_entry
+  movlw   8
+  addwf   FSR0L
+  bsf     STATUS, Z
+  return
+
+try_next_event_entry
+  tblrd*+
+  movf    TABLAT,W
+  movwf   current_event_address_high
+  tblrd*+
+  movf    TABLAT,W
+  movwf   current_event_address_low
+  bra     find_event_loop
+
+
+
+;******************************************************************************
+
+clear_event_store
+  ; Store is blocks of 64 bytes each of which can store 4 event
+  movlw   NUMBER_OF_EVENTS/4
+  movwf   loop_counter
+
+  movlw   low event_storage
+  movwf   TBLPTRL
+  movlw   high event_storage
+  movwf   TBLPTRH
+  clrf    TBLPTRU
+
+clear_event_block
+  call    erase_flash_block
+  movlw   64
+  addwf   TBLPTRL,F
+  clrf    WREG
+  addwfc  TBLPTRH
+  decfsz  loop_counter
+  bra     clear_event_block
+  return
+
+
+
+;******************************************************************************
+;   Erase 64 bytes of flash addressed by TBLPTR
+
+erase_flash_block
+  bsf     EECON1, EEPGD
+  bcf     EECON1, CFGS
+  bsf     EECON1, WREN
+  bsf     EECON1, FREE
+  movff   INTCON, TempINTCON
+  clrf    INTCON
+  movlw   0x55
+  movwf   EECON2
+  movlw   0xAA
+  movwf   EECON2
+  bsf     EECON1, WR
+  nop
+  nop
+  nop
+  movff   TempINTCON, INTCON
+
+  return
+
+
+
+;******************************************************************************
+;   Store 64 bytes of hash table data
+;     current_event_list_head_high, current_event_list_head_low contain address
+;     at which to store the data
+
+store_hashtable_data
+  movlw   0xc0
+  andwf   current_event_list_head_low,W    ; Align to 64 byte boundary
+  movwf   TBLPTRL
+  movf    current_event_list_head_high,W
+  movwf   TBLPTRH
+  bra     write_flash_table
+
+
+
+;******************************************************************************
+;   Store 64 bytes of event data
+;     current_event_address_high, current_event_address_low contain address at
+;     which to write data
+;     the data
+
+store_event_data
+  movlw   0xc0
+  andwf   current_event_address_low,W              ; Align to 64 byte boundary
+  movwf   TBLPTRL
+  movf    current_event_address_high,W
+  movwf   TBLPTRH
+
+write_flash_table
+  clrf    TBLPTRU
+  call    erase_flash_block
+  lfsr    FSR0, evt00
+  movlw   2                                 ; Write 2 blocks
+  movwf   flash_access_counter_1
+
+write_next_flash_table_block
+  movlw   31                                ; Write 32 bytes per block
+  movwf   flash_access_counter_0
+
+load_next_flash_table_entry
+  movf    POSTINC0,W
+  movwf   TABLAT
+  tblwt*+
+  decfsz  flash_access_counter_0,F
+  bra     load_next_flash_table_entry
+
+  movf    POSTINC0,W
+  movwf   TABLAT
+  tblwt*                                    ; Leave TBLPTR at end of block
+
+  movlw   B'10000100'
+  movwf   EECON1
+
+  movff   INTCON, TempINTCON
+  clrf    INTCON
+
+  movlw   0x55
+  movwf   EECON2
+  movlw   0xAA
+  movwf   EECON2
+  bsf     EECON1, WR
+  nop
+
+  movff   TempINTCON, INTCON
+
+  incf    TBLPTRL,F                        ; Advance to next 32 byte block
+  movlw   0
+  addwfc  TBLPTRH,F
+  decfsz  flash_access_counter_1,F
+  bra     write_next_flash_table_block
+
+  return
+
+
+
+;******************************************************************************
+;   Set FSR0 to access RAM copy of event entry in event list
+
+set_FSR0_to_event_entry
+  swapf   WREG,W
+  andlw   B'00000011'
+  tstfsz  WREG
+  bra     not_evt00
+
+  lfsr    FSR0, evt00
+  return
+
+not_evt00
+  decf    WREG,W
+  tstfsz  WREG
+  bra     not_evt10
+
+  lfsr    FSR0, evt10
+  return
+
+not_evt10
+  decf    WREG,W
+  tstfsz  WREG
+  bra     not_evt20
+
+  lfsr    FSR0, evt20
+  return
+
+not_evt20
+  lfsr    FSR0, evt30
+  return
+
+
+
+;******************************************************************************
+send_all_events
+  clrf    Temp
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  sublw   0
+  bz      no_events_to_send
+
+  clrf    Tx_d7                         ; Initialise event index to 0
+  movlw   NUMBER_OF_HASH_TABLE_ENTRIES
+  movwf   ENcount
+  movlw   low hashtable
+  movwf   EEADR
+
+next_hash_table_entry
+  call    read_ee
+  movwf   current_event_address_high
+  incf    EEADR,F
+  call    read_ee
+  movwf   current_event_address_low
+
+send_next_event_in_chain
+  tstfsz  current_event_address_high
+  bra     got_event_to_send
+
+  decf    ENcount
+  bz      all_events_sent
+
+  incf    EEADR,F
+  bra     next_hash_table_entry
+
+got_event_to_send
+  call    fetch_8_bytes_of_event_data
+  incf    Tx_d7
+  movff   evt00, Tx_d3
+  movff   evt01, Tx_d4
+  movff   evt02, Tx_d5
+  movff   evt03, Tx_d6
+
+  movlw   OPC_ENRSP
+  movwf   Tx_d0
+  movlw   8
+  movwf   Tx_dlc
+  call    tx_with_node_number
+  call    delay
+  call    delay
+
+  movff   next_entry_address_0_high, current_event_address_high
+  movff   next_entry_address_0_low, current_event_address_low
+  bra     send_next_event_in_chain
+
+all_events_sent
+  return
+
+no_events_to_send
+  movlw   CMDERR_INVALID_EVENT
+  bra     send_error_message
+
+
+
+;******************************************************************************
+;   Find an event by its index
+;     event_index - Index of event, must be valid and in range
+
+find_indexed_event
+  clrf    current_hash_number
+  clrf    ENcount
+  clrf    ENcount1
+
+search_for_event_in_hash
+  movf    current_hash_number,W
+  addlw   low hash_number_event_counts
+  call    read_ee_at_address
+  addlw   0
+  bz      search_for_event_in_next_hash
+
+  addwf   ENcount1
+  movf    ENcount1,W
+  cpfslt  event_index       ; Skip if index is within event list for this hash
+  bra     search_for_event_in_next_hash
+
+  ; Get start address of events list for this hash
+  rlncf   current_hash_number,W
+  addlw   low hashtable
+  call    read_ee_at_address
+  movwf   current_event_address_high
+  incf    EEADR
+  call    read_ee
+  movwf   current_event_address_low
+
+check_next_event_list_entry
+  movf    event_index,W
+  cpfslt  ENcount
+  return
+
+  incf    ENcount,F
+  call    fetch_8_bytes_of_event_data
+  movff   next_entry_address_0_high, current_event_address_high
+  movff   next_entry_address_0_low, current_event_address_low
+  bra     check_next_event_list_entry
+
+search_for_event_in_next_hash
+  movff   ENcount1, ENcount
+  incf    current_hash_number,F
+  bra     search_for_event_in_hash
+
+
+
+;******************************************************************************
+;   Send event by its index
 ;
-; creates the free chain and initialises next and previous pointers
-; in each entry
-; clears the event data for each event in the free chain
+;     event_index - Index of event
 
-initevdata		; clear all event info				
-	movlw	LOW ENindex+1		;clear number of events
-	movwf	EEADR
-	movlw	0
-	call	eewrite			; no events set up
-	movlw	EVT_NUM
-	decf	EEADR
-	call	eewrite			; set up no of free events
+send_indexed_event
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  sublw   0
+  bz      event_index_invalid ; No events stored
 
-	movlw	HASH_SZ * 2
-	movwf	Count	
-	movlw	LOW hashtab
-	movwf	EEADR
-	
-nextht						; clear hashtable
-	movlw	0
-	call	eewrite
-	incf	EEADR
-	decfsz	Count
-	bra		nextht
-	
-	movlw	HASH_SZ
-	movwf	Count
-	movlw	LOW hashnum
-	movwf	EEADR
-	
-nexthn						; clear hash table count
-	movlw	0
-	call	eewrite
-	incf	EEADR
-	decfsz	Count
-	bra		nexthn
-	
-	call	clrev		; erase all event data
-	movlw	LOW FreeCh	; set up free chain pointer in ROM
-	movwf	EEADR
-	movlw	HIGH evdata
-	movwf	evaddrh
-	call	eewrite
-	movlw	LOW FreeCh + 1
-	movwf	EEADR
-	movlw	0
-	movwf	evaddrl
-	call	eewrite
-	call	clrfb
-	clrf	prevadrh
-	clrf	prevadrl
-	
-	movlw	EVT_NUM
-	movwf	Count		; loop for all events
+  movf    event_index,W
+  bz      event_index_invalid
 
-nxtblk
-	movff	evaddrl, Temp
-	movff	evaddrh, Temp1
-nxtevent
-	movf	Temp,W
-	call	setFsr0
-	movlw	.16
-	addwf	Temp
-	movlw	0
-	addwfc	Temp1
-	clrf	POSTINC0
-	clrf	POSTINC0
-	clrf	POSTINC0
-	clrf	POSTINC0
-	decf	Count
-	bz		lastev		; j if final event
-	movff	Temp1,POSTINC0
-	movff	Temp, POSTINC0
-	movff	prevadrh, POSTINC0
-	movff	prevadrl, POSTINC0
-	movff	evaddrh, prevadrh
-	movff	evaddrl, prevadrl
-	movf	Count,w
-	andlw	0x03
-	bz		nxtevent1
-	movlw	.16		
-	addwf	evaddrl		; move on to next 16 byte block
-	movlw	0
-	addwfc	evaddrh	
-	bra		nxtevent
-nxtevent1
-	call	wrfbev
-	movlw	.16		
-	addwf	evaddrl		; move on to next 64 byte block
-	movlw	0
-	addwfc	evaddrh	
-	bra		nxtblk
-	
-lastev	
-	clrf	Temp
-	movff	Temp,POSTINC0
-	movff	Temp,POSTINC0
-	movff	prevadrh,POSTINC0
-	movff	prevadrl, POSTINC0
-	call	wrfbev
-	return
+  decf    event_index   ; Convert index to offset
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  cpfslt  event_index    ; Skip if offset in range
+  bra     event_index_invalid
 
-	
-;**************************************************************************
+  call    find_indexed_event
+  call    fetch_8_bytes_of_event_data   ; get event data
+
+  movff   evt00, Tx_d3
+  movff   evt01, Tx_d4
+  movff   evt02, Tx_d5
+  movff   evt03, Tx_d6
+  incf    event_index
+  movff   event_index, Tx_d7
+  movlw   OPC_ENRSP
+  movwf   Tx_d0
+  movlw   8
+  movwf   Tx_dlc
+  bra     tx_with_node_number
+
+event_index_invalid
+  movlw   7
+  bra     send_error_message
+
+
+
+;******************************************************************************
+;   Send event and a single event variable by their indices
 ;
-; routines for reading the event data
+;     event_index          - Index of event
+;     event_variable_index - Index of event variable
 
-rdfbht		; on entry htaddrh and htaddrl must point to valid entry
-	movlw	0xc0
-	andwf	htaddrl,w		; align to 64 byte boundary
-	movwf	TBLPTRL
-	movf	htaddrh,w
-	movwf	TBLPTRH
-	movlw	.64
-	movwf	CountFb0
-	bra		rdfb
-	
-rdfbev		; On entry evaddrh and evaddrl must point to the correct entry
-	movlw	0xc0
-	andwf	evaddrl,w		; align to 64 byte boundary
-	movwf	TBLPTRL
-	movf	evaddrh,w
-	movwf	TBLPTRH
-	clrf	TBLPTRU
-	movlw	.64
-	movwf	CountFb0
-rdfb
-	clrf	TBLPTRU
-	movff	FSR0H, EvHnd_FSR0H	;must preserve FSR0
-	movff	FSR0L, EvHnd_FSR0L
-	lfsr	FSR0,evt00
-nxtfbrd
-	tblrd*+
-	movf	TABLAT, w
-	movwf	POSTINC0
-	decfsz	CountFb0
-	bra		nxtfbrd
-	movff	EvHnd_FSR0L, FSR0L	;recover FSR0
-	movff	EvHnd_FSR0H, FSR0H
-	return
-	
-rdfbev16		; read 16 bytes of event data, on entry evaddrh and evaddr must be valid
-	clrf	TBLPTRU
-	movff	evaddrh, TBLPTRH
-	movff	evaddrl, TBLPTRL
-	movlw	.16
-	movwf	CountFb0
-	bra		rdfb
-	
-rdfbev8		; read first 8 bytes of event data, on entry evaddrh and evaddr must be valid
-	clrf	TBLPTRU
-	movff	evaddrh, TBLPTRH
-	movff	evaddrl, TBLPTRL
-	movlw	8
-	movwf	CountFb0
-	bra		rdfb
+send_indexed_event_and_variable
+  ; Get number of events stored
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  sublw   0
+  bz      event_index_invalid ; No events stored
 
-;**************************************************************************
-;
-;	routine for finding an event - returns 0 on success, 1 on failure
-;	If successful, FSR0 points at the event data
+  movf    event_index,W
+  bz      event_index_invalid
 
-enmatch		;on exit if success w = 0 and evaddrh/evaddrl point at led data
-	movlw	0x07
-	andwf	ev3,w		;ls 3 bits as hash
-	movwf	Temp
-	movwf	hnum
-	rlncf	Temp		; times 2 as hash tab is 2 bytes per entry	
-	movlw	LOW hashtab
-	addwf	Temp, w
-	movwf	htidx		; save EEPROM offset of hash tab entry
-	movwf	EEADR
-	call	eeread
-	movwf	evaddrh
-	movwf	htaddrh		; save hash table point ms
-	incf	EEADR
-	call	eeread
-	movwf	evaddrl
-	movwf	htaddrl		; save hash table pointer ls
-nextev
-	tstfsz	evaddrh		;is it zero?, high address cannot be zero if valid
-	bra		addrok
-	retlw	1			; not found
-	
-addrok
-	movf	evaddrl,w
-	movwf	TBLPTRL
-	movf	evaddrh,w
-	movwf	TBLPTRH
-	clrf	TBLPTRU
-	
-	clrf	Match
-	tblrd*+
-	movf	TABLAT,W
-	cpfseq	ev0
-	incf	Match
-	tblrd*+
-	movf	TABLAT,W
-	cpfseq	ev1
-	incf	Match
-	tblrd*+
-	movf	TABLAT,W
-	cpfseq	ev2
-	incf	Match
-	tblrd*+
-	movf	TABLAT,W
-	cpfseq	ev3
-	incf	Match
-	tstfsz	Match
-	bra		no_match
-	movf	evaddrl,w
-	call	setFsr0
-	movlw	8
-	addwf	FSR0L		;leave FSR0 pointing at EVs
-	retlw	0
-	
-no_match		;get link address to next event
-	tblrd*+
-	movf	TABLAT,w
-	movwf	evaddrh
-	tblrd*+
-	movf	TABLAT,w
-	movwf	evaddrl
-	bra		nextev
-	
+  decf    event_index   ; Convert index to offset
+  movlw   low free_event_space + 1
+  call    read_ee_at_address
+  cpfslt  event_index    ; Skip if offset in range
+  bra     event_index_invalid
+
+  movf    event_variable_index,W
+  bz      variable_index_invalid
+
+  decf    event_variable_index    ; Convert index to offset
+  movlw   VARIABLES_PER_EVENT
+  cpfslt  event_variable_index    ; Skip if offset in range
+  bra     variable_index_invalid
+
+  call    find_indexed_event
+
+  call    fetch_16_bytes_of_event_data  ; read event data
+  lfsr    FSR0, ev00
+  movf    event_variable_index,W
+  movff   PLUSW0, Tx_d5
+  incf    event_variable_index    ; Convert offset to index
+  incf    event_index             ; Convert offset to index
+
+  movlw   OPC_NEVAL
+  movwf   Tx_d0
+  movff   event_index, Tx_d3
+  movff   event_variable_index, Tx_d4
+  movlw   6
+  movwf   Tx_dlc
+  bra     tx_with_node_number
+
+variable_index_invalid
+  movlw 6
+  bra   send_error_message
 
 
-;**************************************************************************
-;
-; routines for clearing flash ram
-	
-clrev		; erase all of the event data area in flash
-	movlw	EVT_NUM/4
-	movwf	Count		; 4 events per 64 bytes
-	movlw	LOW evdata
-	movwf	TBLPTRL
-	movlw	high evdata
-	movwf	TBLPTRH
-	clrf	TBLPTRU
-nxtclr
-	call	clrflsh
-	decfsz	Count
-	bra		nxtblock
-	return
-nxtblock
-	movlw	.64
-	addwf	TBLPTRL,F
-	movlw	0
-	addwfc	TBLPTRH
-	bra		nxtclr
-	
-clrflsh		; clears 64 bytes of flash ram, TBLPTR must point to target ram
-	bsf		EECON1,EEPGD		;set up for erase
-	bcf		EECON1,CFGS
-	bsf		EECON1,WREN
-	bsf		EECON1,FREE
-	movff	INTCON,TempINTCON
-	clrf	INTCON	;disable interrupts
-	movlw	0x55
-	movwf	EECON2
-	movlw	0xAA
-	movwf	EECON2
-	bsf		EECON1,WR			;erase
-	nop
-	nop
-	nop
-	movff	TempINTCON,INTCON	;reenable interrupts
 
-	return
-	
-clrfb		; clears the 64 bytes data ram for ev data
-	lfsr	FSR0, evt00
-	movlw	.64
-	movwf	CountFb0
-nxtone
-	clrf	POSTINC0
-	decfsz	CountFb0
-	bra		nxtone
-	return
+;******************************************************************************
+;   Send free event space
 
-;**************************************************************************
-;
-;	routines for writing flash
-;
-; erases flash ram and the writes data back
-; writes the 64 bytes of data ram back to flash ram
-
-wrfbht
-	; htaddrh and htaddrl must contain the flash address on entry
-	movlw	0xc0
-	andwf	htaddrl,w		; align to 64 byte boundary
-	movwf	TBLPTRL
-	movf	htaddrh, W
-	movwf	TBLPTRH
-	bra		wrfb
-	
-	; erases flash ram and the writes data back
-	; writes the 64 bytes of data ram back to flash ram
-	
-	; evaddrh and evaddrl must contain the flash address on entry
-wrfbev
-	movlw	0xc0
-	andwf	evaddrl,w		; align to 64 byte boundary
-	movwf	TBLPTRL
-	movf	evaddrh, W
-	movwf	TBLPTRH
-	
-wrfb
-	clrf	TBLPTRU
-	call	clrflsh
-	lfsr	FSR0, evt00
-	movlw	2
-	movwf	CountFb1
-nxt32
-	movlw	.31			;first 31 bytes
-	movwf	CountFb0
-nxtfb
-	movf	POSTINC0, W
-	movwf	TABLAT
-	tblwt*+
-	decfsz	CountFb0
-	bra 	nxtfb
-	movf	POSTINC0,W
-	movwf	TABLAT
-	tblwt*				; must leave TBLPTR pointing into 32 byte block
-	call 	wrflsh
-	incf	TBLPTRL		;now move into next 32 byte block
-	movlw	0
-	addwfc	TBLPTRH
-	decfsz	CountFb1
-	bra		nxt32
-	return
-	
-wrflsh		; write upto 32 bytes of flash	
-	bsf		EECON1, EEPGD
-	bcf		EECON1,CFGS
-	bcf		EECON1,FREE			;no erase
-	bsf		EECON1, WREN
-	movff	INTCON,TempINTCON
-	clrf	INTCON
-	movlw	0x55
-	movwf	EECON2
-	movlw	0xAA
-	movwf	EECON2
-	bsf		EECON1,WR
-	nop
-	movff	TempINTCON,INTCON
-	return
-	
-;**************************************************************************
-;
-; setFsr0 
-; Om entry w contains the Flash address of the event
-; FSR0 is set to point to the correct block of event data in RAM
-; data is not copied to ram by this routine
-
-setFsr0
-	swapf	WREG
-	andlw	0x03
-	tstfsz	WREG
-	bra 	nxtev1
-	lfsr	FSR0, evt00
-	return
-nxtev1
-	decf	WREG
-	tstfsz	WREG
-	bra		nxtev2
-	lfsr	FSR0, evt10
-	return
-nxtev2
-	decf	WREG
-	tstfsz	WREG
-	bra		nxtev3
-	lfsr	FSR0, evt20
-	return
-nxtev3
-	lfsr	FSR0, evt30
-	return
-		
-		
-
-;**************************************************************************
-;
-; read event variable, ev0-3 must be set
-	
-readev
-	call	enmatch
-	sublw	0
-	bz		readev1			; j if event found
-	clrf	EVdata
-	clrf	EVidx
-	bra		endrdev
-	
-readev1
-	call	rdfbev16		; get 16 bytes of event data
-	lfsr	FSR0, ev00		; point at EVs
-	movf	EVidx,w
-	movf	PLUSW0,w		; get the byte
-	movwf	EVdata
-	incf	EVidx			; put back to 1 based
-	
-endrdev
-	movlw	0xD3
-	movwf	Tx_d0
-	movff	evt00,Tx_d1
-	movff	evt01,Tx_d2
-	movff	evt02,Tx_d3
-	movff	evt03,Tx_d4
-	movff	EVidx,Tx_d5
-	movff	EVdata,Tx_d6
-	movlw	7
-	movwf	Dlc
-	call	TX_data
-	return
-	
-;*************************************************************************
-
-;		read back all events in sequence
-
-enread	clrf	Temp
-		movlw	LOW ENindex+1
-		movwf	EEADR
-		call	eeread
-		sublw	0
-		bz		noens		;no events set
-		
-		clrf	Tx_d7		; first event
-		movlw	HASH_SZ			; hash table size
-		movwf	ENcount	
-		movlw	LOW hashtab
-		movwf	EEADR
-nxtht
-		call	eeread
-		movwf	evaddrh
-		incf	EEADR
-		call	eeread
-		movwf	evaddrl
-nxten
-		tstfsz	evaddrh		; check for valid entry
-		bra		evaddrok
-nxthtab
-		decf	ENcount
-		bz		lasten
-		incf	EEADR
-		bra		nxtht
-		
-evaddrok					; ht address is valid
-		call	rdfbev8		; read 8 bytes from event info
-		incf	Tx_d7
-		movff	evt00, Tx_d3
-		movff	evt01, Tx_d4
-		movff	evt02, Tx_d5
-		movff	evt03, Tx_d6
-		
-		movlw	0xF2
-		movwf	Tx_d0
-		movlw	8
-		movwf	Dlc
-		call	TX_with_NN
-		call	dely
-		call	dely
-		
-		movff	next0h, evaddrh
-		movff	next0l,	evaddrl
-		bra		nxten
-
-noens	movlw	7				;no events set
-		call	errsub
-		return
-	
-lasten	return	
-
-;*************************************************************************
-;
-;	findEN - finds the event by its index
-
-findEN					; ENidx must be valid and in range
-		clrf	hnum
-		clrf	ENcount
-		clrf	ENcount1
-findloop
-		movf	hnum,w
-		addlw	LOW hashnum
-		movwf	EEADR
-		call	eeread
-		addlw	0
-		bz		nxtfnd
-		addwf	ENcount1
-		movf	ENcount1,w
-		cpfslt	ENidx		;skip if ENidx < ENcount1
-		bra		nxtfnd
-		bra		htfound
-nxtfnd
-		movff	ENcount1, ENcount
-		incf	hnum
-		bra		findloop
-htfound
-		rlncf	hnum,w
-		addlw	LOW hashtab
-		movwf	EEADR
-		call	eeread
-		movwf	evaddrh
-		incf	EEADR
-		call	eeread
-		movwf	evaddrl
-nxtEN
-		movf	ENidx,w
-		cpfslt	ENcount
-		return
-		
-nxtEN1
-		incf	ENcount
-		call	rdfbev8
-		movff	next0h, evaddrh
-		movff	next0l, evaddrl
-		bra		nxtEN
-		
-;*************************************************************************
-
-;	send individual event by index, ENidx must contain index
-
-enrdi	movlw	LOW ENindex+1	; no of events set
-		movwf	EEADR
-		call	eeread
-		sublw	0
-		bz		noens1		;no events set
-		
-		movf	ENidx,w		; index starts at 1
-		bz		noens1
-		
-		decf	ENidx		; make zero based for lookup
-		movlw	LOW ENindex +1
-		movwf	EEADR
-		call	eeread		; read no of events
-		cpfslt	ENidx		; required index is in range
-		bra		noens1
-		
-		call	findEN
-		call	rdfbev8		; get event data
-		
-		movff	evt00, Tx_d3
-		movff	evt01, Tx_d4
-		movff	evt02, Tx_d5
-		movff	evt03, Tx_d6
-		incf	ENidx
-		movff	ENidx, Tx_d7
-		movlw	0xF2
-		movwf	Tx_d0
-		movlw	8
-		movwf	Dlc
-		call	TX_with_NN
-		return
-		
-noens1	movlw	7				;inavlid event index
-		call	errsub
-		return
-		
-;***********************************************************
-
-;		send EVs by reference to EN index, ENidx must be set
-
-evsend
-		movlw	LOW ENindex+1	; no of events set
-		movwf	EEADR
-		call	eeread
-		sublw	0
-		bz		noens1		;no events set
-		
-		movf	ENidx,w		; index starts at 1
-		bz		noens1
-		
-		decf	ENidx		; make zero based for lookup
-		movlw	LOW ENindex+1
-		movwf	EEADR
-		call	eeread		; read no of events
-		cpfslt	ENidx		; required index is in range
-		bra		noens1
-		
-		movf	EVidx,w		; index starts at 1
-		bz		notEV		; zero is invalid
-		decf	EVidx
-		movlw	EVperEVT
-		cpfslt	EVidx		; skip if in range
-		bra		notEV
-		
-		call	findEN
-		
-		call	rdfbev16	; read event data
-		lfsr	FSR0,ev00
-		movf	EVidx,w
-		movff	PLUSW0, Tx_d5
-		incf	EVidx		; make 1 based again...
-		incf	ENidx		; ... ditto
-		movlw	0xB5
-		movwf	Tx_d0
-		movff	ENidx,Tx_d3
-		movff	EVidx,Tx_d4
-		movlw	6
-		movwf	Dlc
-		call	TX_with_NN
-		return
-
-notEV	movlw	6		;invalid EN#
-		call	errsub
-		return
-
-;***********************************************************
-
-;		send free event space
+send_free_event_space
+  movlw   low free_event_space
+  call    read_ee_at_address
+  movwf   Tx_d3
+  movlw   0x70
+  movwf   Tx_d0
+  movlw   4
+  movwf   Tx_dlc
+  bra     tx_with_node_number
 
 
-rdFreeSp
-		movlw	LOW ENindex		;read free space
-		movwf	EEADR
-		call	eeread
-		movwf	Tx_d3
-		movlw	0x70
-		movwf	Tx_d0
-		movlw	4
-		movwf	Dlc
-		call	TX_with_NN
-		return
-		
-;************************************************************
+
+;******************************************************************************
 ;
 ; End of evhndlr_h.asm
 ;
-;************************************************************
+;******************************************************************************

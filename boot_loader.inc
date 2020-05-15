@@ -140,14 +140,14 @@
   ORG 0x0008
 ; *****************************************************************************
 
-  goto  HIGH_INT_VECT
+  goto  high_priority_interrupt_routine
 
 ; ***************************************************************************** 
 ;_INTV_L CODE 0x18
   ORG 0x0018
 ; *****************************************************************************
 
-  goto  LOW_INT_VECT 
+  goto  low_priority_interrupt_routine 
 
 ; ************************************************************** 
 ; Code start
@@ -225,7 +225,7 @@ _CANInit:
   bsf EECON1, RD  ; Read the control code
   incfsz EEDATA, W
 
-  goto  RESET_VECT
+  goto  RESET_VECTOR
 
 
   clrf  _bootSpcCmd   ; Reset the special command register
