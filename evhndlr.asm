@@ -446,32 +446,31 @@ event_removed_from_list
 
 
 ;******************************************************************************
-;   Test if events areCopy all EEPROM events to Flash if FLASH not initialised.
-; initialises Free chain and moves all existing events to Flash
-;
+;   Copy all EEPROM events to Flash if not already initialised then initialises
+;   event storage
 
 reload_events
   Unset_Reloading_Events
   movlw   low free_event_space
   call    read_ee_at_address
   movwf   Temp
-  incf    EEADR
-  call    read_ee      ;get num of events
-  addwf   Temp      ;total should equal NUMBER_OF_EVENTS
+  incf    EEADR                 ; Get number of events stored
+  call    read_ee
+  addwf   Temp
   movlw   NUMBER_OF_EVENTS
   cpfseq  Temp
   bra     events_not_loaded
-  return          ;Free chain set up so do nothing
+  return
 
 events_not_loaded
   call    copy_events_to_ram
   movlw   low free_event_space + 1
   call    read_ee_at_address
-  movwf   ENcount     ;save count
+  movwf   event_count     ;save count
 
   call    initialise_event_data    ;create free chain
 
-  tstfsz  ENcount     ;check if any events to copy
+  tstfsz  event_count     ;check if any events to copy
   bra     docopy      ;j if there are...
   return          ;...else no more to do
 
@@ -494,7 +493,7 @@ cynxten_variables
   decfsz  event_variable_index
   bra     cynxten_variables
 
-  decfsz  ENcount
+  decfsz  event_count
   bra     cynxten
 
   Unset_Reloading_Events
@@ -767,34 +766,35 @@ current_event_address_valid
   movwf   TBLPTRH
   clrf    TBLPTRU
 
-  clrf    Match
+  clrf    event_not_matched
   tblrd*+
   movf    TABLAT,W
   cpfseq  ev0
-  incf    Match
+  incf    event_not_matched,F
 
   tblrd*+
   movf    TABLAT,W
   cpfseq  ev1
-  incf    Match
+  incf    event_not_matched,F
 
   tblrd*+
   movf    TABLAT,W
   cpfseq  ev2
-  incf    Match
+  incf    event_not_matched,F
 
   tblrd*+
   movf    TABLAT,W
   cpfseq  ev3
-  incf    Match
+  incf    event_not_matched,F
 
-  tstfsz  Match
+  tstfsz  event_not_matched
   bra     try_next_event_entry
 
+  ; Event found
   movf    current_event_address_low,W
   call    set_FSR0_to_event_entry
   movlw   8
-  addwf   FSR0L
+  addwf   FSR0L                     ; Addresses event variables for event
   bsf     STATUS, Z
   return
 
@@ -977,7 +977,7 @@ send_all_events
 
   clrf    Tx_d7                         ; Initialise event index to 0
   movlw   NUMBER_OF_HASH_TABLE_ENTRIES
-  movwf   ENcount
+  movwf   event_count
   movlw   low hashtable
   movwf   EEADR
 
@@ -992,7 +992,7 @@ send_next_event_in_chain
   tstfsz  current_event_address_high
   bra     got_event_to_send
 
-  decf    ENcount
+  decf    event_count
   bz      all_events_sent
 
   incf    EEADR,F
@@ -1033,8 +1033,8 @@ no_events_to_send
 
 find_indexed_event
   clrf    current_hash_number
-  clrf    ENcount
-  clrf    ENcount1
+  clrf    event_count
+  clrf    event_count1
 
 search_for_event_in_hash
   movf    current_hash_number,W
@@ -1043,8 +1043,8 @@ search_for_event_in_hash
   addlw   0
   bz      search_for_event_in_next_hash
 
-  addwf   ENcount1
-  movf    ENcount1,W
+  addwf   event_count1
+  movf    event_count1,W
   cpfslt  event_index       ; Skip if index is within event list for this hash
   bra     search_for_event_in_next_hash
 
@@ -1059,17 +1059,17 @@ search_for_event_in_hash
 
 check_next_event_list_entry
   movf    event_index,W
-  cpfslt  ENcount
+  cpfslt  event_count
   return
 
-  incf    ENcount,F
+  incf    event_count,F
   call    fetch_8_bytes_of_event_data
   movff   next_entry_address_0_high, current_event_address_high
   movff   next_entry_address_0_low, current_event_address_low
   bra     check_next_event_list_entry
 
 search_for_event_in_next_hash
-  movff   ENcount1, ENcount
+  movff   event_count1, event_count
   incf    current_hash_number,F
   bra     search_for_event_in_hash
 
