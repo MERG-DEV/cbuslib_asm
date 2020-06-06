@@ -96,22 +96,6 @@
 
 
 ;******************************************************************************
-;   Send number of learnt events currently stored
-
-send_number_of_events
-  clrf    EEADRH
-  movlw   low free_event_space + 1
-  call    read_ee_at_address
-  movwf   Tx_d3
-  movlw   OPC_NUMEV
-  movwf   Tx_d0
-  movlw   4
-  movwf   Tx_dlc
-  bra     tx_with_node_number
-
-
-
-;******************************************************************************
 ;   Learn an event and if in FLiM learn an event variable, in SLiM modify event
 ;   variables based on switch settings
 ;     The event Node Number must be in ev0 and ev1
