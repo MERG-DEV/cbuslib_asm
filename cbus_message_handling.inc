@@ -583,33 +583,6 @@ node_variable_index_in_range
 
 
 ;******************************************************************************
-;   Reset Node Variables to default values
-
-reset_trigger_times
-  movlw   8
-  movwf   loop_counter
-  movlw   low trigger_time_defaults
-  movwf   Temp
-  movwf   EEADR
-
-trigger_times_reset_loop
-  call    read_ee
-  movwf   Temp1
-  movlw   low node_variables - low trigger_time_defaults
-  addwf   EEADR,F
-  movf    Temp1,W
-  call    write_ee
-  dcfsnz  loop_counter
-  return
-
-  incf    Temp,F
-  movf    Temp,W
-  movwf   EEADR
-  bra     trigger_times_reset_loop
-
-
-
-;******************************************************************************
 ;   Send number of learnt events currently stored
 
 send_number_of_events
