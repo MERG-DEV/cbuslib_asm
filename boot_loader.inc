@@ -53,9 +53,6 @@
 
 ;*  Modified version of the Microchip code by M Bolton  30/10/09
 ;
-; The user program must provide the following code entry points:
-;         initialisation, high_priority_interrupt, low_priority_interrupt
-
 ; Checksum is 16 bit addition of all programmable bytes.
 ; User sends 2s complement of addition at end of program in command 0x03 (16 bits only)
 
@@ -64,6 +61,10 @@
 ; definitions used by bootloader
 
 #define MODE_SELF_VERIFY  ;Enable self verification of written data (undefine if not wanted)
+
+#define HIGH_INT_VECT 0x0808  ;HP interrupt vector redirect. Change if target is different
+#define LOW_INT_VECT  0x0818  ;LP interrupt vector redirect. Change if target is different.
+#define RESET_VECT  0x0800  ;start of target
 
 #define CAN_CD_BIT  RXB0EIDL,0  ;Received control / data select bit
 #define CAN_PG_BIT  RXB0EIDL,1  ;Received PUT / GET bit
@@ -137,14 +138,14 @@
   ORG 0x0008
 ; *****************************************************************************
 
-  goto  high_priority_interrupt
+  goto  HIGH_INT_VECT
 
 ; *****************************************************************************
 ;_INTV_L CODE 0x18
   ORG 0x0018
 ; *****************************************************************************
 
-  goto  low_priority_interrupt
+  goto  LOW_INT_VECT
 
 ; **************************************************************
 ; Code start
@@ -222,7 +223,7 @@ _CANInit:
   bsf EECON1, RD  ; Read the control code
   incfsz EEDATA, W
 
-  goto  initialisation
+  goto  RESET_VECT
 
 
   clrf  _bootSpcCmd   ; Reset the special command register
