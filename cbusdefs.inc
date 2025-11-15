@@ -6,7 +6,7 @@
 ; 		Originally derived from opcodes.h (c) Andrew Crosland.
 ; 		CSV version by Ian Hogg inspired by David W Radcliffe
 ; 		
-; 		Ver 8w 
+; 		Ver 8y
 ; 		
 ; 		  This work is licensed under the:
 ; 		      Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License.
@@ -93,6 +93,12 @@
 ; 		                              Resolve changes from PR #13,  move proposed and/or agreed opcodes not yet in the published spec to below the others
 ; 		Pete Brownlow,5/08/2022, Ver 8w  Add module type 79 for CANBUFFER
 ; 		Pete Brownlow,5/01/2023, Ver 8w  Add module type 80 for CANPMSense
+; 		Ian Hogg,14/08/2023, Ver 8x  Add manufacturer code for VLCB. This is a way to allocate a block of module Id to VLCB even though VLCB group is not a manufacturer per se. The VLCB module IDs will be defined in the VLCB repo
+; 		Pete Brownlow,2/11/23, Ver 8x  Add module id for CANLEVER (Tim Coombs)
+; 		Pete Brownlow,3/11/23, Ver 8x  Update SPROG module type ids (Andrew Crosland)
+; 		Pete Brownlow, 23/11/23, Ver 8y  Add CANSHIELD, CAN4IN4OUT, CANDEV
+; 		Ian Hogg, 10/3/25, Remove the VLCB manufacturer code as this is no longer required. Add CANARGB.
+; 		Chris White, 15/11/25, Add DCCCBUS.
 ; 
 ; CBUS Manufacturer definitions
 ; Where the manufacturer already has an NMRA code, this is used
@@ -192,16 +198,28 @@ MTYP_CANSINP	equ .76	; Q series PIC input module (Ian Hart)
 MTYP_CANSOUT	equ .77	; Q series PIC input module (Ian Hart)
 MTYP_CANSBIP	equ .78	; Q series PIC input module (Ian Hart)
 MTYP_CANBUFFER	equ .79	; Message buffer (Phil Silver)
+MTYP_CANLEVER	equ .80	; Lever frame module (Tim Coombs)
+MTYP_CANSHIELD	equ .81	; Kit 110 Arduino shield test firmware
+MTYP_CAN4IN4OUT	equ .82	; 4 inputs 4 outputs (Arduino module)
+MTYP_CANCMDB	equ .83	; CANCMD with built in booster (Simon West)
+MTYP_CANPIXEL	equ .84	; neopixel driver (Jon Denham)
+MTYP_CANCABPE	equ .85	; Cab2 with pot or encoder (Simon West hardware, Jon Denham new C firmware)
+MTYP_CANSMARTTD	equ .86	; Smart train detector (Michael Smith)
+MTYP_CANARGB	equ .87	; Addressable LEDs (Ian Hogg)
+MTYP_DCCCBUS	equ .88	; DCC accessory packets to CBUS events (Chris WHite)
+MTYP_VLCB	equ 0xFC	; All VLCB modules have the same ID
+; 
 ; 
 ; 
 ; 
 ; At the time of writing the list of defined MERG module types is maintained by Pete Brownlow software@upsys.co.uk
-; Please liaise with Pete before adding new module types, 
+; Please liaise with Pete before adding new module types
 ; and/or create your own GitHub branch, add your proposed new module type(s) and then create a Pull Request
 ; 
 MTYP_CAN_SW	equ 0xFF	; Software nodes
 MTYP_EMPTY	equ 0xFE	; Empty module, bootloader only
 MTYP_CANUSB	equ 0xFD	; USB interface
+MTYP_CANDEV	equ 0xFC	; Module type for use by developers when developing something new
 ; 
 ; Sprog Module types
 ; 
@@ -210,10 +228,10 @@ MTYP_CANSPROG3P	equ .2	; SPROG 3 Plus programmer/command station
 MTYP_CANSPROG	equ .3	; CAN SPROG programmer/command station
 MTYP_CANSBOOST	equ .4	; System Booster
 MTYP_CANPiSPRGP	equ .5	; Pi-SPROG 3 Plus programmer/command station
-MTYP_CANISB	equ .6	; CAN ISB Isolated CAN USB Interface
-MTYP_CANIO	equ .7	; 8-channel I/O module
-MTYP_CANSERVOIO	equ .8	; 8-channel Servo I/O module
-MTYP_CANSOLIO	equ .9	; 8-channel (4-pairs) Solenoid I/O module
+MTYP_CANSOLNOID 	equ .8	; 8-channel (4-pairs) Solenoid I/O module
+MTYP_CANSERVOIO	equ .50	; 8-channel Servo I/O module
+MTYP_CANISB	equ .100	; CAN ISB Isolated CAN USB Interface
+MTYP_CANSOLIO 	equ .101	; 8-channel (4-pairs) Solenoid I/O module
 ; 
 ; 
 ; Rocrail Module types
@@ -455,7 +473,7 @@ CMDERR_INV_NV_VALUE	equ .12	;
 ; 
 ; Additional error codes proposed and/or agreed but not yet in the current published specification
 ; 
-CMDERR_LRN_OTHER	equ .13	; Sent when module in learn mode sees NNLRN for different module (also exits learn mode) 
+CMDERR_LRN_OTHER	equ .13	; Sent when module in learn mode sees NNLRN for different module (also exits learn mode)
 ; 
 ; 
 ; Sub opcodes for OPC_CABDAT
@@ -520,6 +538,7 @@ PF_FLiM	equ .4	; Module is in FLiM
 PF_BOOT	equ .8	; Module supports the FCU bootloader protocol
 PF_COE	equ .16	; Module can consume its own events
 PF_LRN	equ .32	; Module is in learn mode
+PF_VLCB	equ .64	; Module is VLCB compatible
 ; 
 ; BUS type that module is connected to
 ; 
