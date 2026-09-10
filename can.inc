@@ -164,7 +164,7 @@ If_Rx_FIFO_Empty macro do_this
 
 
 ;******************************************************************************
-Rx_From_FIFO macro len, sidh, sidl, db0, db1, db2, db3, db4, db5, db6, db7
+Rx_From_FIFO macro len, sidh, sidl, opcode, db0, db1, db2, db3, db4, db5, db6
 
   ; Select next FIFO buffer
   movlw   0x07
@@ -175,6 +175,7 @@ Rx_From_FIFO macro len, sidh, sidl, db0, db1, db2, db3, db4, db5, db6, db7
   movff   RXB0DLC, len
   movff   RXB0SIDH, sidh
   movff   RXB0SIDL, sidl
+  movff   RXB0D0, opcode
   movff   RXB0D0, db0
   movff   RXB0D0, db1
   movff   RXB0D0, db2
@@ -182,7 +183,6 @@ Rx_From_FIFO macro len, sidh, sidl, db0, db1, db2, db3, db4, db5, db6, db7
   movff   RXB0D0, db4
   movff   RXB0D0, db5
   movff   RXB0D0, db6
-  movff   RXB0D0, db7
 
   bcf     RXB0CON, RXFUL
 
